@@ -1,0 +1,20 @@
+# Force LF for shell scripts — CRLF endings break bash on POSIX (the
+# `#!/usr/bin/env bash` line gets parsed as `bash\r` and fails with
+# "bad interpreter: no such file or directory" — a notorious cross-
+# platform foot-gun for curl-pipe-bash installers.
+*.sh         text eol=lf
+scripts/*    text eol=lf
+
+# Python sources: LF on POSIX, LF on Windows too. Avoids unnecessary
+# diff churn when devs cross platforms.
+*.py         text eol=lf
+
+# Config files: LF.
+*.toml       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.json       text eol=lf
+
+# Docs: LF.
+*.md         text eol=lf
+LICENSE      text eol=lf

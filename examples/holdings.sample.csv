@@ -1,0 +1,11 @@
+ticker,value,sector
+NVDA,15000,tech
+AAPL,12000,tech
+MSFT,10000,tech
+JPM,8000,financials
+XOM,5000,energy
+GLD,4000,gold
+O,3000,reits
+COIN,2500,crypto
+IWM,2000,small_cap
+ZZZZZ,1000,

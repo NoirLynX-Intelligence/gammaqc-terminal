@@ -1,0 +1,110 @@
+"""Raw SEC + market-data scraper.
+
+Free-tier behavior (no API key): pulls public SEC EDGAR filings + Yahoo
+Finance quote data directly from the user's machine. No middleman. The
+raw file never leaves their local box — privacy is a feature, not a
+constraint.
+
+EDGAR endpoints are intentionally unauthenticated public APIs; SEC asks
+for a descriptive User-Agent (with contact email) per their fair-access
+policy. We honor that — see _SEC_UA below.
+"""
+from __future__ import annotations
+
+import json
+import time
+from dataclasses import dataclass
+from typing import Any
+
+import httpx
+
+_SEC_UA = "gammaqc-terminal/0.1 (contact: ops@gammaqc.com)"
+_SEC_BASE = "https://data.sec.gov"
+_YAHOO_QUOTE = "https://query1.finance.yahoo.com/v7/finance/quote"
+# SEC asks for ≤10 req/s; we pace conservatively at ~5 req/s with sleeps
+# between calls. No need for async — a quote + filings call is 3 HTTPs.
+_REQ_SPACING_S = 0.2
+
+
+@dataclass
+class ScrapeResult:
+    ticker: str
+    quote: dict[str, Any]
+    recent_filings: list[dict[str, Any]]
+    cik: str | None
+    error: str | None = None
+
+
+def _cik_for_ticker(client: httpx.Client, ticker: str) -> str | None:
+    """SEC publishes a ticker→CIK index. Cache on disk in a future rev;
+    for v0.1 we fetch fresh per call (~50KB)."""
+    try:
+        r = client.get("https://www.sec.gov/files/company_tickers.json", timeout=15)
+        if r.status_code != 200:
+            return None
+        idx = r.json()
+        ticker_u = ticker.upper()
+        for _, row in idx.items():
+            if row.get("ticker", "").upper() == ticker_u:
+                cik = str(row.get("cik_str", ""))
+                return cik.zfill(10) if cik else None
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError):
+        pass
+    return None
+
+
+def _recent_filings(client: httpx.Client, cik: str, limit: int = 5) -> list[dict[str, Any]]:
+    try:
+        r = client.get(f"{_SEC_BASE}/submissions/CIK{cik}.json", timeout=15)
+        if r.status_code != 200:
+            return []
+        sub = r.json()
+        recent = sub.get("filings", {}).get("recent", {})
+        forms = recent.get("form", [])
+        dates = recent.get("filingDate", [])
+        accs = recent.get("accessionNumber", [])
+        out = []
+        for i in range(min(len(forms), limit)):
+            out.append({
+                "form": forms[i],
+                "filed": dates[i] if i < len(dates) else "",
+                "accession": accs[i] if i < len(accs) else "",
+            })
+        return out
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError):
+        return []
+
+
+def _quote(client: httpx.Client, ticker: str) -> dict[str, Any]:
+    """Yahoo quote endpoint — unauthenticated, no key required. Returns
+    raw dict on success, {} on failure. Caller surfaces gracefully."""
+    try:
+        r = client.get(_YAHOO_QUOTE, params={"symbols": ticker}, timeout=15)
+        if r.status_code != 200:
+            return {}
+        data = r.json()
+        results = data.get("quoteResponse", {}).get("result", [])
+        return results[0] if results else {}
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError):
+        return {}
+
+
+def scrape_ticker(ticker: str) -> ScrapeResult:
+    """One-shot scrape: quote + recent SEC filings. All public endpoints,
+    no API key required, no third-party telemetry."""
+    headers = {
+        "user-agent": _SEC_UA,
+        "accept-encoding": "gzip, deflate",
+    }
+    with httpx.Client(headers=headers) as client:
+        cik = _cik_for_ticker(client, ticker)
+        time.sleep(_REQ_SPACING_S)
+        quote = _quote(client, ticker)
+        time.sleep(_REQ_SPACING_S)
+        filings = _recent_filings(client, cik) if cik else []
+    if not quote and not filings:
+        return ScrapeResult(
+            ticker=ticker.upper(), quote={}, recent_filings=[], cik=cik,
+            error="no data — invalid ticker or upstream rate-limit",
+        )
+    return ScrapeResult(ticker=ticker.upper(), quote=quote, recent_filings=filings, cik=cik)

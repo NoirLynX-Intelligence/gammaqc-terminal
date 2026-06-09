@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+build/
+dist/
+*.whl
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local config (must not be committed — contains real API keys when developer is testing)
+*.local.json
+config.local.*
+.envrc
+.env
+.env.*
+
+# Sample/test output
+*.cov.xml
+coverage.xml
