@@ -37,7 +37,7 @@ def validate_key(cfg: Config) -> dict:
         raise AuthError("no api key set — run `gamma login --api-key <KEY>`")
     with _client(cfg) as c:
         try:
-            r = c.post("/oracle/auth/validate")
+            r = c.post("/api/oracle/auth/validate")
         except httpx.HTTPError as e:
             raise AuthError(f"backend unreachable at {cfg.backend_url}: {e}") from e
     if r.status_code == 401:

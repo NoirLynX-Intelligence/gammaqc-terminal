@@ -111,7 +111,7 @@ def warren_analyze(ticker: str, quote: dict[str, Any], filings: list[dict[str, A
         return local
     try:
         with _client(cfg, timeout=10.0) as c:
-            r = c.post("/oracle/voice/warren", json={
+            r = c.post("/api/oracle/voice/warren", json={
                 "ticker": ticker, "quote": quote, "filings": filings,
             })
         if r.status_code == 200:

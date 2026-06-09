@@ -65,7 +65,7 @@ def upgrade_card_via_backend(card: TraderCard, cfg: Config) -> TraderCard:
         return card
     try:
         with _client(cfg, timeout=15.0) as c:
-            r = c.post("/oracle/card/sealed", json={
+            r = c.post("/api/oracle/card/sealed", json={
                 "ticker": card.ticker,
                 "bias": card.bias,
                 "bullets": card.bullets,

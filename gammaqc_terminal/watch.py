@@ -167,7 +167,7 @@ async def watch_loop(ticker: str, spec: TriggerSpec, *,
                 if cfg and cfg.api_key:
                     try:
                         with _client(cfg, timeout=15) as c:
-                            c.post("/oracle/watch/receipt", json={
+                            c.post("/api/oracle/watch/receipt", json={
                                 "ticker": ticker,
                                 "trigger": str(spec),
                                 "fired_value": value,
