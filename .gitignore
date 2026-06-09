@@ -36,7 +36,7 @@ config.local.*
 *.cov.xml
 coverage.xml
 
-# Bulk-deploy script transient outputs
+# Bulk-deploy script transient outputs (failed/no-zone lists for retry)
 cf-bulk-redirect.failed.txt
 cf-bulk-redirect.no-zone.txt
 cf-deploy-worker.failed.txt
