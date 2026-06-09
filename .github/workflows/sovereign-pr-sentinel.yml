@@ -67,7 +67,7 @@ jobs:
     steps:
       - name: Require ANTHROPIC_API_KEY
         env:
-          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          KEY: ${{ secrets.GAMMAQC_ANTHROPIC_KEY || secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -z "$KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY not set"; exit 1
@@ -104,7 +104,7 @@ jobs:
 
       - name: Run ${{ matrix.lens }} sentinel
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.GAMMAQC_ANTHROPIC_KEY || secrets.ANTHROPIC_API_KEY }}
           LENS: ${{ matrix.lens }}
         run: |
           python - <<'PY'
@@ -284,7 +284,7 @@ jobs:
 
       - name: Refute each finding (parallel within prompt)
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.GAMMAQC_ANTHROPIC_KEY || secrets.ANTHROPIC_API_KEY }}
         run: |
           python - <<'PY'
           import os, json, pathlib, sys, urllib.request, glob
@@ -435,7 +435,7 @@ jobs:
 
       - name: Audit each finding for self-contradiction
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.GAMMAQC_ANTHROPIC_KEY || secrets.ANTHROPIC_API_KEY }}
         run: |
           python - <<'PY'
           import os, json, pathlib, random, sys, time, urllib.request
