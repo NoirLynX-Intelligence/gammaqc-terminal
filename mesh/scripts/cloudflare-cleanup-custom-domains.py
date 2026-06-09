@@ -114,7 +114,21 @@ def _attach_custom_domain(hostname: str, zone_id: str, account_id: str, token: s
 
 def cleanup_zone(domain: str, account_id: str, token: str) -> str:
     """Returns: 'already-correct' | 'replaced' | 'attached-fresh' |
-    'no zone' | 'error: ...'"""
+    'tls-stuck' | 'no zone' | 'error: ...'
+
+    LESSON LEARNED from the live 923-zone cleanup run (2026-06-09):
+      ~606 zones returned CF error 100117 'Hostname already has externally
+      managed TLS certificate' on the PUT step. The Custom Domain DELETE
+      succeeded but the subsequent PUT 409'd because the stale TLS cert
+      binding from the prior Worker had not fully cleared from CF's
+      anycast TLS-serving infrastructure. The Worker Route remains bound
+      (this is the redirect path that actually serves users), so end-user
+      behavior is unaffected — purely a cosmetic 'TLS layer' issue.
+
+      Surface as 'tls-stuck' so the operator sees the categorized count
+      vs zones needing real attention. Real fix (when desired) is CF
+      dashboard per-zone click-through — not blocking launch.
+    """
     zone_id = _get_zone_id(domain, token)
     if not zone_id:
         return "no zone"
@@ -125,17 +139,27 @@ def cleanup_zone(domain: str, account_id: str, token: str) -> str:
         current_service = cd.get("service")
         if current_service == TARGET_SCRIPT:
             return "already-correct"
-        # Old service still bound — delete + re-attach to our Worker
+        # Old service still bound — delete + try to re-attach to our Worker
         _delete_custom_domain(cd["id"], account_id, token)
         time.sleep(SLEEP_S)
-        _attach_custom_domain(domain, zone_id, account_id, token)
-        return f"replaced ({current_service} → {TARGET_SCRIPT})"
+        try:
+            _attach_custom_domain(domain, zone_id, account_id, token)
+            return f"replaced ({current_service} → {TARGET_SCRIPT})"
+        except CFError as e:
+            # CF error 100117 = stale TLS binding. Not user-impacting
+            # (route still serves redirects). Surface as 'tls-stuck'.
+            if "100117" in str(e) or "externally managed" in str(e):
+                return "tls-stuck (route serves; dashboard fix needed)"
+            raise
 
-    # No Custom Domain currently — attach fresh (this is the 48-zone
-    # case where the prior delete propagated but the PUT 409'd because
-    # of stale edge state; retry typically succeeds now)
-    _attach_custom_domain(domain, zone_id, account_id, token)
-    return "attached-fresh"
+    # No Custom Domain currently — try to attach fresh
+    try:
+        _attach_custom_domain(domain, zone_id, account_id, token)
+        return "attached-fresh"
+    except CFError as e:
+        if "100117" in str(e) or "externally managed" in str(e):
+            return "tls-stuck (route serves; dashboard fix needed)"
+        raise
 
 
 def main():
@@ -170,7 +194,7 @@ def main():
           f"(~{est_min:.1f} min)")
 
     stats = {"already-correct": 0, "replaced": 0, "attached-fresh": 0,
-             "no zone": 0, "error": 0}
+             "tls-stuck": 0, "no zone": 0, "error": 0}
     failed: list[tuple[str, str]] = []
     for i, d in enumerate(domains, 1):
         try:
