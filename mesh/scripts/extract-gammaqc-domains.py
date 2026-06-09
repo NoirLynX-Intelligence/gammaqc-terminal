@@ -6,7 +6,7 @@ domain list. The partition rule is HARD-CODED — wrong-side-of-the-line
 domains can never be auto-included by accident, even on operator typo.
 
 Partition (Commander allocation 2026-06-09):
-    GammaQC : 1333xxx.xyz only        (capped at GAMMAQC_MAX = 1000)
+    GammaQC : 1333xxx.xyz only        (capped at GAMMAQC_MAX = 923, deployed)
     DrkLynX : 1334xxx, 1411xxx, named (everything else — left alone)
 
 Why hard-code: the bulk-DNS script that uses this list will mass-flip
@@ -40,7 +40,17 @@ from pathlib import Path
 # the git blame trail makes the boundary movement obvious.
 
 GAMMAQC_PATTERN = re.compile(r"^1333\d{3}\.xyz$", re.IGNORECASE)
-GAMMAQC_MAX = 1000   # Commander's cap as of 2026-06-09
+# SPS PR #1 CRITICAL fix: tightened cap from 1000 to 923 (the actual
+# deployed allocation). Commander's verbal upper bound was "up to 1000"
+# but the realized mesh is 923 zones. If a re-extract pulls in NEW
+# 1333xxx domains (e.g. 1333004.xyz which is in the sequence but missing
+# from the current CSV — likely held by another tenant), the script will
+# OVERFLOW the cap → operator must consciously bump GAMMAQC_MAX,
+# forcing them to verify the new domains aren't already bound to
+# non-GammaQC infrastructure (BlendRoastGrind / NoirLynX sovereign-edge
+# Workers per the 2026-06-09 Cloudflare audit). Defense in depth against
+# accidental cross-tenant DNS hijack via blind re-extraction.
+GAMMAQC_MAX = 923    # actual deployed count; bump explicitly to expand
 
 # Defensive: never auto-claim these even if they accidentally match the pattern.
 # Add domains here if a 1333xxx ever needs to be carved out for non-GammaQC use.
