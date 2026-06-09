@@ -1,136 +1,173 @@
-# r/algotrading — primary launch post
+# r/algotrading — primary launch post (Gamma QC Terminal release)
 
 **Subreddit:** r/algotrading
-**Suggested title:** `Built a CLI that does portfolio shock-testing locally + reads SEC filings in <1s. Free, Apache-2.0.`
+**Title:** `Released a free local CLI for portfolio shock-testing + SEC scrape. Apache-2.0, your CSV stays on your machine.`
 **Flair:** Tools / Show
-**Best posting window:** Tuesday or Wednesday, 9-11am ET (when EU + US east are both awake)
+**Best posting window:** Tuesday or Wednesday, 9-11am ET (US-east + EU both awake)
+
+> Product brand: **Gamma QC** (a DrkLynX product). The CLI is "Gamma QC
+> Terminal" or `gammaqc-terminal` (PyPI / GitHub). The post stays
+> subreddit-appropriate: tool announcement, no brand-forward marketing
+> voice. The institutional weight of `Gamma` (volatility / curvature /
+> alpha) and `QC` (Quantitative Cryptography + Quality Control) shows
+> up when people click through to gammaqc.com — let them discover it.
 
 ---
 
 ## Post body
 
-I got tired of either (a) paying for terminal subscriptions or (b)
-duct-taping Yahoo Finance into Python notebooks every time I wanted to
-stress-test a position. So I built `gammaqc-terminal` — a Python CLI
-that does the things I actually want from the command line.
+I built a Python CLI for the moments when something happens in the
+market and I want to know how my book reacts in the next 30 seconds,
+without paying for a terminal subscription or refactoring a yfinance
+notebook every quarter.
 
-What it does, free tier (no signup, no account):
-
-- `gamma analyze NVDA` — pulls the most recent SEC filings + Yahoo
-  quote, prints a structural read of where the position sits
-- `gamma shock --portfolio ./holdings.csv --event "Fed raises 50bps"` —
-  reads your holdings CSV LOCALLY, runs a deterministic Blast Radius
-  Report per ticker. The CSV never leaves your machine. Run it offline.
-- `gamma watch NVDA --trigger "volume_spike > 3.0"` — headless daemon
-  that fires native desktop notifications + webhooks when conditions
-  hit. Same shape as a Bloomberg alert minus the $24K/yr.
-- `gamma scrape NVDA` — raw JSON to stdout. Pipe into jq, your bots,
-  whatever.
-
-Install:
+**Install:**
 
 ```bash
 pip install gammaqc-terminal
-gamma analyze NVDA
 ```
 
-Or curl-pipe-bash if you prefer:
+Or curl-pipe-bash from the install portal:
 
 ```bash
 curl -sL https://install.gammaqc.com/install | bash
 ```
 
-(The install script is 30 lines of bash. It runs pipx install if
-you have pipx, else pip3 install --user. Zero telemetry. You can
-verify before piping: `curl -sL https://install.gammaqc.com/install
-| less`.)
+The install script is 30 lines of bash. Verify before piping:
+
+```bash
+curl -sL https://install.gammaqc.com/install | less
+```
 
 **Source:** github.com/NoirLynX-Intelligence/gammaqc-terminal (Apache-2.0)
 **PyPI:** pypi.org/project/gammaqc-terminal
 
-### The privacy posture (the reason I built it this way)
+---
 
-- Holdings CSV NEVER leaves your machine in free mode. The `shock`
-  command parses it client-side, computes Blast Radius client-side.
-  Privacy is the product, not a feature.
-- The install script makes ONE network call: the pip install from PyPI.
-  No telemetry. No phone-home. No analytics pixel.
-- If you authenticate later (Pro tier, see below), the API key is
-  stored at your OS-native config dir with 0600 perms. Never logged,
-  never echoed.
+### Free tier — what it does on your machine
 
-### The Pro tier wall (transparent — figure I'd rather tell you upfront)
+```bash
+gamma analyze NVDA
+# Pulls last 48hr of SEC filings (EDGAR) + quote + a structural read
+# of the position. All from your local box. Renders a Swiss-Brutalist
+# trader card.
 
-Free tier is what's above. Pro tier ($49/mo) adds:
+gamma shock --portfolio ./holdings.csv --event "Fed raises rates 50bps"
+# Reads your holdings CSV LOCALLY, computes a deterministic
+# Blast Radius Report per ticker. The CSV NEVER leaves your machine.
+# Run it offline. (Verify with the network off — it still works.)
 
+gamma watch NVDA --trigger "volume_spike > 3.0"
+# Headless daemon. Polls quote data, fires a native desktop
+# notification + optional webhook (Discord/Slack) when the trigger
+# hits. No cloud account, no Zapier, no subscription.
+
+gamma scrape NVDA
+# Raw JSON to stdout. Pipe into jq, your bots, dashboards.
+```
+
+### What makes it different from yfinance + Excel
+
+- **Holdings privacy contract.** The CSV never leaves your machine
+  in free mode. The `shock` command parses + computes Blast Radius
+  client-side. This is the actual value-add — not the scrape layer
+  (which is yfinance with extras).
+- **Deterministic Blast Radius model.** Per-event asset-class beta
+  vectors, mapped to a fixed rule table. Full source in
+  `gammaqc_terminal/shock.py`. **Not a regression model and not
+  trying to be.** Goal: directional ("which positions bleed on Fed
+  +50bps") not P&L forecast. Honest about the limits.
+- **Cross-platform.** Python 3.10+ on ubuntu/macos/windows. 50 tests
+  in CI covering the 9-platform matrix.
+
+### Pro tier wall (upfront, not hidden)
+
+Free tier above is permanently free. No 30-day-trial-then-paywall.
+
+Pro tier ($49/mo, when you want it) adds:
+
+- 10-Seat Sacred Council split on every trader card
 - Cryptographically-sealed compliance receipts on every Ghost-Watcher
-  daemon fire (HMAC-SHA256 today, ML-DSA-65 wire-ready). Useful if
-  you're an RIA or anyone who needs an audit trail.
-- The Trader Card shows the full 10-Seat sovereign council split
-  instead of the redacted version.
-- Algorithmic Hedge Strategy: `gamma shock --hedge` calls the backend
-  to return per-position hedge recommendations (deterministic rule
-  table, not LLM-generated, so the recommendation is reproducible
-  for compliance).
-- Backend Warren-Voice analysis (this one IS LLM-graded).
-
-Free tier is permanently free. Not a 30-day-trial-then-paywall scheme.
-
-### Why I'm posting this
-
-Honestly, I built it for myself first. Putting it out because the
-privacy contract only works at scale — the more eyes on the source,
-the more trustworthy "your CSV never leaves your machine" actually is.
-
-Happy to answer technical questions. Feedback on what's missing /
-broken is welcome.
+  daemon fire (HMAC-SHA256 today, ML-DSA-65 PQC stub ready for the
+  keypair rollout). Useful if you're an RIA or anyone who needs a
+  reproducible audit trail.
+- `gamma shock --hedge` — backend Algorithmic Hedge Strategy. The
+  hedge logic is a **deterministic rule table, NOT LLM-generated**.
+  Hedge advice has legal exposure; it has to be reproducible from
+  inputs for compliance audit. The trade-off vs an LLM is intentional.
+- Backend Warren-Voice analysis (this one IS LLM-graded, with per-call
+  attestation hash on the response).
 
 ---
 
-## What NOT to say if questioned
+### Why I'm posting this
 
-- Don't claim it replaces Bloomberg — it doesn't. It does a SLICE of
-  what Bloomberg does, locally and free. Honest framing.
-- Don't promise "AI-powered" features the free tier doesn't actually
-  ship.
-- Don't argue with people who say "just use yfinance" — they're partly
-  right; `scrape` is essentially yfinance with extras. The value is in
-  the integrated `shock` + `watch` + signing flow, not the scrape itself.
+The privacy contract ("CSV never leaves your machine") only works at
+scale when the source is verifiable. More eyes on the code = more
+trust the contract holds. Source is Apache-2.0, on GitHub, with CI
+running on every push.
 
-## Reply templates (for likely top comments)
+Feedback / breakage reports welcome.
 
-> "Looks like a thin wrapper around yfinance"
+---
 
-True for `scrape`. The value-add is `shock` (which yfinance doesn't do
-and isn't trying to do) + `watch` (which exists but is fragmented) +
-the privacy contract (which yfinance can't promise because it's a thin
-HTTP client). If you only need raw quotes, stick with yfinance.
+## What NOT to claim if questioned
 
-> "How is the Blast Radius Report actually calculated?"
+- ❌ Don't say it replaces Bloomberg. It does a slice locally, free.
+  Honest framing only.
+- ❌ Don't promise the LLM features the free tier doesn't ship.
+- ❌ Don't push the Pro tier in the thread. Let people discover it.
+- ❌ Don't claim the backend is open. It's not. CLI is Apache-2.0;
+  backend is sovereign-tier proprietary. That's the architecture.
 
-It's a heuristic, intentionally. Per-event asset-class beta vectors
-mapped to a deterministic rule table — full source in
-`gammaqc_terminal/shock.py`. NOT a regression model and NOT trying to
-be. The goal is directional ("which positions bleed on Fed +50bps")
-not P&L forecast. Honest about its limits.
+## Reply templates for likely top comments
 
-> "Why should I trust the Pro tier compliance signing?"
+### "Looks like a wrapper around yfinance"
 
-The signed payload is HMAC-SHA256 today with a published canonicalization
-(sort_keys + ":" separators) so any third party with the verifier key
-can validate. The ML-DSA-65 PQC path is wired but not active until the
-keypair lands (Phase 2). It's "honest unsigned" until then — clearly
-marked, never silently downgraded.
+True for `scrape`. The value-add is `shock` (yfinance doesn't do
+portfolio stress-tests) + `watch` (yfinance doesn't do headless
+daemons with native notifications) + the privacy contract (yfinance
+can't promise it because it's a thin HTTP client). If you only need
+raw quotes, yfinance is fine — it's a dependency, not a competitor.
 
-> "Where's the actual code? I want to read it before installing."
+### "How is Blast Radius actually calculated?"
 
-github.com/NoirLynX-Intelligence/gammaqc-terminal — start with
-gammaqc_terminal/cli.py to see the CLI surface, then shock.py for the
-Blast Radius logic, then auth.py to verify the privacy contract.
-50 tests covering shock + watch + auth + config; CI matrix runs on
-Python 3.10/3.11/3.12 × ubuntu/macos/windows.
+Per-event asset-class beta vectors. e.g. `fed_hike` →
+`{long_duration_tech: -1.2, growth_tech: -0.9, financials: +0.6, ...}`.
+Each ticker maps to an asset class via the CSV's `sector` column
+(or a small built-in lookup table for common tickers). Blast Radius =
+`position_value × class_beta`. Full source:
+[`gammaqc_terminal/shock.py`](https://github.com/NoirLynX-Intelligence/gammaqc-terminal/blob/main/gammaqc_terminal/shock.py).
 
-> "What if I find a security issue?"
+The betas are conservative and intentionally simple. PRs with
+empirically-derived betas from a real factor model are welcome.
 
-Email ops@gammaqc.com. Or open a GitHub issue with a CVE-style
-write-up. Fixed-in-N-days commitment on confirmed reports.
+### "Why should I trust the Pro tier signing?"
+
+The signed payload is HMAC-SHA256 today with a published
+canonicalization (sort_keys + `:` separators, strip `_attestation`
+field before re-encoding). Any third party with the verifier key can
+validate the signature. The ML-DSA-65 PQC path is wired but stub-
+inactive until the keypair lands — explicitly marked as
+"honest unsigned" until then, never silently downgraded.
+
+### "Where's the code?"
+
+[github.com/NoirLynX-Intelligence/gammaqc-terminal](https://github.com/NoirLynX-Intelligence/gammaqc-terminal).
+Start with `gammaqc_terminal/cli.py` for the CLI surface, then
+`shock.py` for the Blast Radius logic, then `auth.py` + `config.py`
+to verify the privacy contract.
+
+### "Is the backend open source too?"
+
+The CLI is Apache-2.0. The backend (council + hedge rule table + PQC
+attestation infra) is sovereign-tier proprietary — what you pay for at
+Pro is access to the canonical backend. The CLI ↔ backend API contract
+is documented in the `routes/terminal.py` module on the CLI side, so
+the CLI can talk to any compatible implementation if you'd rather
+self-host the backend logic.
+
+### "What if I find a security issue?"
+
+ops@gammaqc.com, or a CVE-style GitHub issue. Fixed-in-N-days
+commitment on confirmed reports.

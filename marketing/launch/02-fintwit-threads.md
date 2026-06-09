@@ -1,5 +1,12 @@
 # Fintwit (X.com) — 5 single-post drops, spread over 2 weeks
 
+> **Brand context:** product is **Gamma QC** (DrkLynX brand). CLI is
+> `gammaqc-terminal` / "Gamma QC Terminal". `Gamma` = options trader
+> meaning (volatility, curvature, alpha); `QC` = Quantitative
+> Cryptography + Quality Control. Institutional-weight name on purpose.
+> First link in any post → `install.gammaqc.com`; second → GitHub
+> source (proof of the privacy claim).
+
 **Posting cadence:** one every 2-3 days. NOT a thread (threads on
 launch posts feel marketery). Each post is standalone, links to a
 different feature so the surface area expands organically.

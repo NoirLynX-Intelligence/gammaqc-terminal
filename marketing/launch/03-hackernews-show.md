@@ -84,9 +84,12 @@ yfinance Python script with extras pre-built.
 Free tier is permanently free. Pro tier ($49/mo) is the API-key-gated
 compliance + council + hedge-strategy generation. Sustainable on a
 small Pro base because the backend is cheap to operate (single LLM
-call per `voice/warren` invocation, capped). I'm building this in the
-open because the privacy claim ("CSV never leaves your machine") is
-verifiable only if the source is verifiable.
+call per `voice/warren` invocation, capped). The CLI is open-source
+specifically because the privacy claim ("CSV never leaves your
+machine") only holds if the source is verifiable — anything that
+runs on your machine, you can inspect. The backend stays proprietary
+because that's where the operational complexity (PQC chain, council
+synthesis, hedge rule maintenance) lives.
 
 ### "Why .com pricing tier vs open-core?"
 
@@ -100,19 +103,18 @@ assumptions so an audit can verify the math.
 
 ### "What's stopping someone from just self-hosting the backend?"
 
-Nothing technical. The backend code is also Apache-2.0 — you can
-deploy your own. The Pro tier pays for:
-- Operating the canonical backend at api.gammaqc.com
-- The PQC signing key management
-- The hedge rule table maintenance (updated as macro regimes shift)
+The CLI is Apache-2.0; the backend is sovereign-tier proprietary —
+intentionally. The Pro tier pays for access to the canonical backend
+at `api.gammaqc.com`: the council synthesis, the PQC signing chain,
+and the hedge rule table (which is updated as macro regimes shift).
 
-If you want to self-host, the source is at github.com/NoirLynX-
-Intelligence/gammaqc-backend (...not yet — will be made public when
-the v2.4 PR lands; right now it's private).
-
-[Note for Commander: the backend is currently PRIVATE. The HN comment
-above implies it will be public. Either (a) make it public, or
-(b) edit this reply template before posting.]
+The CLI ↔ backend API contract is fully documented in the
+`routes/terminal.py` module on the CLI side. If you want to build a
+self-hosted equivalent backend, the contract is enough to do it.
+We're not publishing the canonical backend source — the value isn't
+in the algorithm itself (the hedge logic is deterministic + auditable
+by inspecting response payloads), it's in operating the canonical
+attestation chain.
 
 ### "Why post on HN?"
 
