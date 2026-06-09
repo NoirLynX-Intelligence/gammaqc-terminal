@@ -101,42 +101,65 @@ ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/certbot-canonical.sh"
 ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/verify-mesh.sh"
 ```
 
-**Phase B — Cloudflare edge redirects for the 923 GammaQC mesh nodes (~15 min)**
+**Phase B — Cloudflare Worker redirect (REVISED 2026-06-09 evening)**
 
-The mesh nodes already live on Cloudflare. We use CF's Rulesets API to add
-ONE redirect rule per zone (923 total) — no DNS A-record changes, no
-Hostinger involvement, no LE certs. Cloudflare handles HTTPS at edge.
+We attempted Page Rules first. Failed: each of the 923 zones already had
+a (broken) Cloudflare Worker bound that returned `Cannot read properties
+of undefined (reading 'get')` 500 errors, intercepting requests BEFORE
+Page Rules could fire (CF request order: WAF → Workers → Page Rules →
+Origin).
+
+Pivot: deploy a NEW Worker (`mesh/workers/redirect.js`, 22 lines) that
+does the 301 redirect, replace the broken Worker's routes with ours on
+all 923 zones. Cleaner than Page Rules anyway — one script, atomic
+across zones, no per-zone rule management.
 
 ```bash
-# Pre-flight (do once at https://dash.cloudflare.com/profile/api-tokens):
-#   "Create Token" → "Custom token" with these permissions on All Zones:
-#     - Zone        : Read
-#     - Zone        : Page Rules (Edit)        ← legacy, still useful
-#     - Zone        : Zone Settings (Edit)      ← for always_use_https toggle
-#     - Account     : Account Rulesets (Read)   ← optional, helpful
+# Pre-flight CF API token permissions (https://dash.cloudflare.com/profile/api-tokens):
+#   "Custom token" with these scopes on ALL zones in the account:
+#     - Account : Workers Scripts   : Edit    ← deploy the Worker once
+#     - Zone    : Workers Routes    : Edit    ← bind it to each zone
+#     - Zone    : Zone              : Read    ← look up zone IDs
+#     - Zone    : Zone Settings     : Edit    ← always_use_https toggle (optional)
 #   No IP whitelist needed — the token bearer is the auth.
 
-# Then run from ANYWHERE (your laptop, the Hostinger box, doesn't matter —
-# this is API calls, not box-local action):
+# Then run from ANYWHERE (laptop, Hostinger box, CI — pure API calls):
 export CF_API_TOKEN=<your_cloudflare_token>
 
-# Smoke-test with 3 domains first to validate token + rule shape
-python3 mesh/scripts/cloudflare-bulk-redirect.py \
+# Step 1. Deploy the Worker script once + bind to 3 zones (smoke test)
+python3 mesh/scripts/cloudflare-deploy-worker.py \
     --csv mesh/data/domains-gammaqc.csv \
     --limit 3
 
-# If green, run the full 923-domain allocation (~15 min at 4 req/sec)
-python3 mesh/scripts/cloudflare-bulk-redirect.py \
-    --csv mesh/data/domains-gammaqc.csv
+# Step 2. If green, bind to all 923 zones (~12 min at 4 req/sec)
+#         --skip-upload because the script is unchanged from step 1
+python3 mesh/scripts/cloudflare-deploy-worker.py \
+    --csv mesh/data/domains-gammaqc.csv \
+    --skip-upload
 
-# Verify a sample of the mesh now redirects (works from your laptop —
-# the redirects are at CF edge, no box-local DNS resolve needed)
+# Step 3. Verify a sample of the mesh redirects
 bash mesh/scripts/verify-mesh.sh --samples 20
 ```
 
-The script is idempotent — re-running on a domain that already has the
-redirect just updates the description (we identify our rule by description
-prefix "gammaqc-mesh:"). Safe to re-run after edits or partial failures.
+The deploy script is idempotent — re-running deletes our prior route
+(matched by pattern OR by script name pointing at gammaqc-mesh-redirect)
+then creates fresh. Other Worker routes on the zone are LEFT ALONE
+(so you can add intentional non-redirect Workers later without conflict).
+
+## Why Workers instead of Page Rules
+
+The 923 mesh zones each have an existing (broken) Cloudflare Worker bound
+that intercepts requests before Page Rules fire. We replace those Workers
+with our own redirect Worker — cleaner architecturally than fighting
+the Worker-then-Page-Rule ordering.
+
+Worker advantages on this surface:
+- One script, 923 zone bindings (vs. 923 individual Page Rules)
+- Atomic update: change `CANONICAL` in `redirect.js`, re-deploy → all 923
+  flip simultaneously
+- 4-line redirect logic, fully auditable
+- Free tier supports 100k Worker invocations/day — easily enough for
+  install traffic + bot noise combined
 
 **Phase C — optional HTTPS rollout on mesh nodes (weeks-long, only if needed)**
 
