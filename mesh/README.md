@@ -1,31 +1,42 @@
-# gammaqc-terminal — install mesh (v0.3)
+# gammaqc-terminal — install mesh (v0.3, Cloudflare-native)
 
-> Hostinger KVM2 + Nginx + Let's Encrypt. **One canonical install URL +
-> ~1,500-node redirect fabric** powered by the DrkLynX numeric .xyz mesh.
+> 923 GammaQC mesh nodes redirect at the Cloudflare edge → one canonical
+> install endpoint on Hostinger KVM 2. Universal SSL on every mesh node
+> (no per-domain LE certs needed).
 
 ## Architecture
 
 ```
-       USER hits any of:
-         curl -sL https://install.gammaqc.com/install | bash
-         curl -sL http://1334077.xyz/install | bash         (301 → canonical)
-         curl -sL http://1411099.xyz/install | bash         (301 → canonical)
-         …
-                       │
-                       ▼
-       ┌─────────────────────────────────────┐
-       │ Hostinger KVM2 (187.124.95.35)      │
-       │ ┌─────────────────────────────────┐ │
-       │ │ install.gammaqc.com (HTTPS)     │ │   ← single LE cert, full TLS
-       │ │  └─ landing / install / sbom    │ │
-       │ │                                 │ │
-       │ │ default-redirect (HTTP catch)   │ │   ← 301 → canonical, preserves $request_uri
-       │ └─────────────────────────────────┘ │
-       └─────────────────────────────────────┘
-                       │
-                       ▼
-              pip install gammaqc-terminal    ← already live on PyPI
+   USER hits any of the 923 mesh nodes:
+   curl -sL https://1333077.xyz/install
+                  │
+                  ▼
+   ┌──────────────────────────────────────────┐
+   │  CLOUDFLARE EDGE (anycast, free SSL)      │
+   │   ├── Universal SSL on every domain       │
+   │   └── Bulk Redirect Rule per zone:        │
+   │       "any URL → https://install.         │
+   │        gammaqc.com${path}${query}, 301"   │
+   └──────────────────────────────────────────┘
+                  │ 301 (handled at edge — never hits our box)
+                  ▼
+   ┌──────────────────────────────────────────┐
+   │  Hostinger KVM 2 (187.124.95.35)          │
+   │   install.gammaqc.com (single LE cert)    │
+   │     ├── /install   (the bash script)      │
+   │     ├── /sbom      (manifest)             │
+   │     └── /          (landing page)         │
+   └──────────────────────────────────────────┘
+                  │ pip install
+                  ▼
+              pypi.org (gammaqc-terminal 0.2.0)
 ```
+
+**Why this is better than the v0.2 design:**
+- Mesh nodes already on Cloudflare → free Universal SSL on every domain (skipped 30 weeks of LE rate-limiting)
+- Redirects happen at Cloudflare edge (microseconds) instead of round-tripping through Hostinger
+- Hostinger box only serves the canonical — no per-mesh-domain load
+- Mesh expansion is bounded by CF account zones, not LE cert quota
 
 ## Domain inventory allocation (Commander 2026-06-09)
 
@@ -90,37 +101,42 @@ ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/certbot-canonical.sh"
 ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/verify-mesh.sh"
 ```
 
-**Phase B — bulk DNS for the 923 GammaQC mesh nodes (~21 min once API key is ready)**
+**Phase B — Cloudflare edge redirects for the 923 GammaQC mesh nodes (~15 min)**
+
+The mesh nodes already live on Cloudflare. We use CF's Rulesets API to add
+ONE redirect rule per zone (923 total) — no DNS A-record changes, no
+Hostinger involvement, no LE certs. Cloudflare handles HTTPS at edge.
 
 ```bash
-# Pre-flight (do once at https://ap.www.namecheap.com → Profile → Tools → API Access):
-#   - Enable API access
-#   - Whitelist 187.124.95.35 (the box's IP — script must run from there)
-#   - Generate API key, copy it
+# Pre-flight (do once at https://dash.cloudflare.com/profile/api-tokens):
+#   "Create Token" → "Custom token" with these permissions on All Zones:
+#     - Zone        : Read
+#     - Zone        : Page Rules (Edit)        ← legacy, still useful
+#     - Zone        : Zone Settings (Edit)      ← for always_use_https toggle
+#     - Account     : Account Rulesets (Read)   ← optional, helpful
+#   No IP whitelist needed — the token bearer is the auth.
 
-# Then on the Hostinger box:
-ssh root@187.124.95.35
-export NC_API_USER=<your_nc_username>
-export NC_API_KEY=<your_nc_api_key>
-export NC_API_USERNAME=<your_nc_username>     # same as NC_API_USER for solo accounts
-export NC_CLIENT_IP=187.124.95.35
+# Then run from ANYWHERE (your laptop, the Hostinger box, doesn't matter —
+# this is API calls, not box-local action):
+export CF_API_TOKEN=<your_cloudflare_token>
 
-# Test with --limit 5 first to validate auth + DNS shape on a small batch
-# The pre-allocated GammaQC list lives at mesh/data/domains-gammaqc.csv
-# (923 domains from the 1333xxx range — DrkLynX domains EXCLUDED by partition).
-python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
-    --csv /opt/gammaqc-mesh/data/domains-gammaqc.csv \
-    --ip 187.124.95.35 \
-    --limit 5
+# Smoke-test with 3 domains first to validate token + rule shape
+python3 mesh/scripts/cloudflare-bulk-redirect.py \
+    --csv mesh/data/domains-gammaqc.csv \
+    --limit 3
 
-# If green, run the full GammaQC allocation (~21 min at 45 req/min)
-python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
-    --csv /opt/gammaqc-mesh/data/domains-gammaqc.csv \
-    --ip 187.124.95.35
+# If green, run the full 923-domain allocation (~15 min at 4 req/sec)
+python3 mesh/scripts/cloudflare-bulk-redirect.py \
+    --csv mesh/data/domains-gammaqc.csv
 
-# Verify a sample of the mesh now redirects
-bash /opt/gammaqc-mesh/scripts/verify-mesh.sh --samples 20
+# Verify a sample of the mesh now redirects (works from your laptop —
+# the redirects are at CF edge, no box-local DNS resolve needed)
+bash mesh/scripts/verify-mesh.sh --samples 20
 ```
+
+The script is idempotent — re-running on a domain that already has the
+redirect just updates the description (we identify our rule by description
+prefix "gammaqc-mesh:"). Safe to re-run after edits or partial failures.
 
 **Phase C — optional HTTPS rollout on mesh nodes (weeks-long, only if needed)**
 

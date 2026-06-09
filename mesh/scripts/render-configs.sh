@@ -34,12 +34,15 @@ CANONICAL_HOST="install.gammaqc.com"
 
 TEMPLATE_CANONICAL_HTTP="$MESH_ROOT/nginx/canonical-http.conf"
 TEMPLATE_CANONICAL_FULL="$MESH_ROOT/nginx/canonical.conf"
-TEMPLATE_DEFAULT="$MESH_ROOT/nginx/default-redirect.conf"
 TEMPLATE_LANDING="$MESH_ROOT/landing/index.html"
 INSTALL_SCRIPT="$MESH_ROOT/landing/install"
 
+# Note: as of v0.3 Cloudflare-native, default-redirect.conf is NOT rendered.
+# The mesh redirects happen at Cloudflare's edge (via Rulesets API, set by
+# cloudflare-bulk-redirect.py). Hostinger only serves the canonical now.
+
 for f in "$TEMPLATE_CANONICAL_HTTP" "$TEMPLATE_CANONICAL_FULL" \
-         "$TEMPLATE_DEFAULT" "$TEMPLATE_LANDING" "$INSTALL_SCRIPT"; do
+         "$TEMPLATE_LANDING" "$INSTALL_SCRIPT"; do
     [ -f "$f" ] || { echo "missing $f"; exit 1; }
 done
 
@@ -100,22 +103,20 @@ cat > "$WEB_ROOT/${CANONICAL_HOST}/sbom.json" <<EOF
 }
 EOF
 
-# ─── 3. Render the mesh default-redirect server block ────────────────────────
-# Catches every Host header that doesn't match install.gammaqc.com →
-# 301 to https://install.gammaqc.com$request_uri. Works for any of the
-# ~1,500 numeric .xyz mesh nodes pointed at this box.
-cp "$TEMPLATE_DEFAULT" "$SITES_AVAIL/default-redirect.conf"
-ln -sf "$SITES_AVAIL/default-redirect.conf" "$SITES_ENAB/default-redirect.conf"
-
-# Also remove Hostinger's default Ubuntu welcome page server block if it's
-# still present + symlinked — its default_server directive on :80 would
-# CONFLICT with our new default-redirect.conf (only ONE default_server
-# allowed per address:port pair).
-if [ -L "$SITES_ENAB/default" ] || [ -f "$SITES_ENAB/default" ]; then
-    rm -f "$SITES_ENAB/default"
-    echo "[render-configs] removed Hostinger default server symlink "\
-         "(conflicted with our default-redirect default_server)"
-fi
+# ─── 3. Clean up any stale default-redirect.conf from v0.3-pre-cloudflare ────
+# Earlier v0.3 iteration rendered a Hostinger nginx default_server that did
+# the redirect. With Cloudflare edge redirects now, that's obsolete. Remove
+# if present so the canonical server block becomes the only thing this box
+# serves on port 80.
+for f in "$SITES_ENAB/default-redirect.conf" "$SITES_AVAIL/default-redirect.conf"; do
+    [ -f "$f" ] && rm -f "$f" && echo "[render-configs] removed stale $(basename $f)"
+done
+# Keep Hostinger's default server symlink REMOVED (any unknown Host header on
+# port 80 should now get the Ubuntu default page on this box — anyone hitting
+# the IP directly without a mesh-bound Host header is an op probe, not user
+# traffic). Or, if we want to be more graceful, return 404 default-server.
+# v0.3 ships without a default_server; nginx serves the FIRST defined server
+# (canonical) as implicit default. Fine.
 
 chown -R www-data:www-data "$WEB_ROOT"
 
