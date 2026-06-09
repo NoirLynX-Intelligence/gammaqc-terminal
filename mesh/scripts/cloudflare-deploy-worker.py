@@ -78,7 +78,13 @@ def _cf(method: str, path: str, token: str,
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+            status_code = resp.status
+            # CF DELETE endpoints return 200 with empty body OR 204 No Content.
+            # Treat empty body as implicit success — there's nothing to parse.
+            if not raw or status_code == 204:
+                return {"success": True, "result": None, "_synthesized": True}
+            payload = json.loads(raw.decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
             err_body = json.loads(e.read().decode("utf-8"))
@@ -116,33 +122,97 @@ def _delete_route(zone_id: str, route_id: str, token: str) -> None:
 
 
 def _create_route(zone_id: str, domain: str, token: str) -> None:
-    pattern = f"*{domain}/*"
+    # Use the most-specific pattern (no leading *) so CF picks ours over
+    # any leftover wildcard routes. Pattern: <domain>/* matches both apex
+    # and any path under it; the bare apex (no path) is handled by the
+    # Custom Domain binding (which we also create/replace below).
+    pattern = f"{domain}/*"
     _cf("POST", f"/zones/{zone_id}/workers/routes", token, body={
         "pattern": pattern,
         "script": SCRIPT_NAME,
     })
 
 
-def bind_zone(domain: str, token: str) -> str:
-    """Bind our Worker to the zone. Returns status string ('ok',
-    'no zone', 'error: ...'). Idempotent: deletes any existing routes
-    with our pattern OR pointing at our script, then creates fresh."""
+def _list_custom_domains(zone_id: str, account_id: str, token: str) -> list[dict]:
+    """Custom Domains are per-account, filtered by zone. Different API
+    surface from Worker Routes — bound at account level via /accounts/{id}/workers/domains."""
+    try:
+        payload = _cf("GET",
+                      f"/accounts/{account_id}/workers/domains?zone_id={zone_id}",
+                      token)
+        return payload.get("result", []) or []
+    except CFError:
+        # If our token lacks the account-level custom-domains scope, return
+        # empty — the per-zone Worker Routes binding still works at lower
+        # priority. Honest degradation.
+        return []
+
+
+def _delete_custom_domain(domain_id: str, account_id: str, token: str) -> None:
+    _cf("DELETE",
+        f"/accounts/{account_id}/workers/domains/{domain_id}",
+        token)
+
+
+def _attach_custom_domain(hostname: str, zone_id: str, account_id: str,
+                          token: str) -> None:
+    """Attach our Worker as the Custom Domain owner for this hostname.
+    Custom Domains are the highest-priority Worker binding (above Routes),
+    so this is the cleanest way to guarantee our redirect Worker fires."""
+    _cf("PUT",
+        f"/accounts/{account_id}/workers/domains",
+        token,
+        body={
+            "environment": "production",
+            "hostname": hostname,
+            "service": SCRIPT_NAME,
+            "zone_id": zone_id,
+        })
+
+
+def bind_zone(domain: str, account_id: str, token: str,
+              reassign: bool = True) -> str:
+    """Bind our Worker to the zone, REPLACING any existing Worker bindings.
+
+    GammaQC's 923-zone allocation (1333xxx) was previously bound to
+    BlendRoastGrind + NoirLynX-sovereign-edge Workers. Per Commander
+    2026-06-09: 'any xyz can be reassigned'. So this script DELETES all
+    existing Worker Routes + Custom Domains on each zone before installing
+    ours.
+
+    DrkLynX's allocation (1334xxx + 1411xxx) is EXCLUDED by the partition
+    in mesh/data/domains-gammaqc.csv — those zones are never touched.
+
+    Returns: 'ok' | 'no zone' | 'error: ...'
+    """
     zone_id = _get_zone_id(domain, token)
     if not zone_id:
         return "no zone"
 
-    our_pattern = f"*{domain}/*"
-    existing = _list_routes(zone_id, token)
-    for r in existing:
-        # Replace if pattern matches ours OR if route points at our script
-        # already (e.g., from a prior run). Leaves OTHER (non-conflicting)
-        # Worker routes alone — Commander may have intentional routes for
-        # other purposes; we only manage our own.
-        if r.get("pattern") == our_pattern or r.get("script") == SCRIPT_NAME:
+    if reassign:
+        # 1. Delete Custom Domain bindings for this zone (highest priority,
+        #    must clear first or our Route gets shadowed).
+        for cd in _list_custom_domains(zone_id, account_id, token):
+            _delete_custom_domain(cd["id"], account_id, token)
+            time.sleep(SLEEP_S)
+        # 2. Delete ALL Worker Routes on this zone (we're reassigning).
+        for r in _list_routes(zone_id, token):
             _delete_route(zone_id, r["id"], token)
             time.sleep(SLEEP_S)
 
+    # 3. Install our Route (path-wildcard, most-specific pattern).
     _create_route(zone_id, domain, token)
+    time.sleep(SLEEP_S)
+    # 4. Install our Custom Domain (highest-priority binding — guarantees
+    #    no future Route addition can shadow our redirect).
+    try:
+        _attach_custom_domain(domain, zone_id, account_id, token)
+    except CFError as e:
+        # Custom Domain attach can fail if token lacks the scope OR if
+        # hostname is in use by another zone/service. Route alone is
+        # still functional; degrade gracefully.
+        msg = str(e)[:120]
+        return f"ok (route only — custom domain attach failed: {msg})"
     return "ok"
 
 
@@ -198,14 +268,14 @@ def main():
     failed: list[tuple[str, str]] = []
     for i, d in enumerate(domains, 1):
         try:
-            status = bind_zone(d, token)
+            status = bind_zone(d, account_id, token, reassign=True)
         except CFError as e:
             status = f"error: {str(e)[:200]}"
         except Exception as e:
             status = f"error: {type(e).__name__}: {str(e)[:200]}"
-        if status == "ok":
+        if status.startswith("ok"):
             succeeded += 1
-            print(f"[{i:4d}/{len(domains)}] {d}: OK")
+            print(f"[{i:4d}/{len(domains)}] {d}: {status}")
         elif status == "no zone":
             no_zone.append(d)
             print(f"[{i:4d}/{len(domains)}] {d}: NO ZONE")
