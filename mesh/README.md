@@ -1,119 +1,132 @@
-# gammaqc-terminal — 500-Domain Install Mesh
+# gammaqc-terminal — install mesh (v0.3)
 
-> Hostinger KVM2 + Nginx + Let's Encrypt. One install script, one landing
-> page template, served from any of 500 .xyz sovereign mesh domains.
+> Hostinger KVM2 + Nginx + Let's Encrypt. **One canonical install URL +
+> ~1,500-node redirect fabric** powered by the DrkLynX numeric .xyz mesh.
+
+## Architecture
 
 ```
-   sec-earnings-cli.xyz       ┐
-   crypto-options-tape.xyz    │      Hostinger KVM2 (single box)
-   texas-energy-quant.xyz     │      ┌────────────────────────────┐
-   swiss-compliance-cli.xyz   ├────► │  Nginx (one config)        │
-   ...                        │      │   ├── /         → landing  │
-   (500 hyper-niche domains)  │      │   ├── /install  → bash     │
-                              ┘      │   └── /sbom     → manifest │
-                                     └────────────────────────────┘
-                                             │
-                                             ▼
-                                   pip install gammaqc-terminal
-                                   (from PyPI)
+       USER hits any of:
+         curl -sL https://install.gammaqc.com/install | bash
+         curl -sL http://1334077.xyz/install | bash         (301 → canonical)
+         curl -sL http://1411099.xyz/install | bash         (301 → canonical)
+         …
+                       │
+                       ▼
+       ┌─────────────────────────────────────┐
+       │ Hostinger KVM2 (187.124.95.35)      │
+       │ ┌─────────────────────────────────┐ │
+       │ │ install.gammaqc.com (HTTPS)     │ │   ← single LE cert, full TLS
+       │ │  └─ landing / install / sbom    │ │
+       │ │                                 │ │
+       │ │ default-redirect (HTTP catch)   │ │   ← 301 → canonical, preserves $request_uri
+       │ └─────────────────────────────────┘ │
+       └─────────────────────────────────────┘
+                       │
+                       ▼
+              pip install gammaqc-terminal    ← already live on PyPI
 ```
 
-## What this is
-
-A faceless distribution fabric. The CLI itself ships via PyPI; the 500
-.xyz domains are SEO honeypots that funnel hyper-niche queries to a
-single curl-pipe-bash command. Each domain has its own landing page
-keyword-tuned to the niche (energy quants, crypto compliance, REIT
-investors, etc.) but ALL of them install the exact same package.
-
-This file documents the layout. Run `./scripts/bootstrap.sh` on the
-Hostinger box to install Nginx + Certbot + lay down the configs.
-
-## Privacy contracts
-
-- The install endpoint serves a static script. **Zero telemetry on the
-  install path.** No tracking cookies, no analytics pixel, no log of
-  which domain the user came from.
-- The landing pages are static HTML. No JS, no third-party fonts, no
-  external embeds. Swiss-Brutalist minimalism — the page IS the proof
-  of seriousness.
-- Nginx access logs are rotated daily and retained 7 days for ops
-  debugging only. No personally-identifying fields are logged.
-- Let's Encrypt certificates renew via certbot's standard cron; we do
-  NOT use Cloudflare or any third-party CDN in front of these domains
-  (the CDN would see install traffic — defeats the sovereign promise).
-
-## Layout
+## What's in this directory
 
 ```
 mesh/
-├── README.md                  ← this file
+├── README.md                          ← this file
 ├── nginx/
-│   ├── gammaqc-mesh.conf      ← single Nginx server block (templated)
-│   ├── nginx.conf.snippet     ← include-path for the main nginx.conf
-│   └── domains.list           ← the 500 domains, one per line
+│   ├── canonical-http.conf            ← pre-cert HTTP-only template for install.gammaqc.com
+│   ├── canonical.conf                 ← post-cert full HTTPS template for install.gammaqc.com
+│   ├── default-redirect.conf          ← catch-all 301 → canonical (the mesh fabric)
+│   └── nginx.conf.snippet             ← privacy log format (lean: just log_format)
 ├── landing/
-│   ├── index.html             ← Swiss-Brutalist landing template
-│   └── install                ← the bash script users curl-pipe
+│   ├── index.html                     ← universal landing (no per-domain templating)
+│   └── install                        ← byte-identical curl-pipe-bash script
 └── scripts/
-    ├── bootstrap.sh           ← initial Hostinger box setup (idempotent)
-    ├── render-configs.sh      ← expands the template → 500 server blocks
-    ├── certbot-bulk.sh        ← obtains certs in batches (LE rate limits)
-    └── verify-mesh.sh         ← smoke-tests every domain returns 200
+    ├── bootstrap.sh                   ← idempotent Hostinger box setup
+    ├── render-configs.sh              ← render canonical + default-redirect, clean stale configs
+    ├── certbot-canonical.sh           ← issue ONE LE cert for install.gammaqc.com
+    ├── verify-mesh.sh                 ← smoke-test canonical + sample mesh nodes
+    └── namecheap-bulk-dns.py          ← bulk-set A-records for ~1,500 NC domains
 ```
 
-## Bootstrap sequence (Commander runs ONCE on Hostinger KVM2)
+## Bootstrap sequence
+
+**Phase A — canonical install endpoint (~10 min)**
 
 ```bash
-# As root on the KVM2 box (Ubuntu 22.04+ assumed):
+# 1. Sync mesh/ to the box (from your dev machine or the existing /tmp clone)
+ssh root@187.124.95.35 "cd /tmp/gammaqc && git pull -q && cp -r mesh/. /opt/gammaqc-mesh/"
 
-# 1. Sync this mesh/ dir to the box
-rsync -avz mesh/ root@<hostinger-ip>:/opt/gammaqc-mesh/
+# 2. Render the new config + clean up stale per-niche server blocks from v0.1/v0.2
+ssh root@187.124.95.35 "cp /opt/gammaqc-mesh/nginx/nginx.conf.snippet /etc/nginx/snippets/gammaqc-mesh.conf && bash /opt/gammaqc-mesh/scripts/render-configs.sh && nginx -t && systemctl reload nginx"
 
-# 2. Bootstrap
-ssh root@<hostinger-ip> 'cd /opt/gammaqc-mesh && bash scripts/bootstrap.sh'
+# 3. Add DNS A-record for install.gammaqc.com at wherever gammaqc.com DNS lives
+#    install.gammaqc.com → 187.124.95.35
+#    (do this in your DNS provider's panel)
 
-# 3. Point ALL 500 domains' A records at the Hostinger IP
-#    (Hostinger DNS panel; bulk import supported via CSV)
-
-# 4. Generate certs in batches (Let's Encrypt rate-limits ~50/wk per IP)
-ssh root@<hostinger-ip> 'cd /opt/gammaqc-mesh && bash scripts/certbot-bulk.sh'
+# 4. Wait for DNS to propagate (~5 min), then issue the canonical LE cert
+ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/certbot-canonical.sh"
 
 # 5. Smoke-test
-ssh root@<hostinger-ip> 'cd /opt/gammaqc-mesh && bash scripts/verify-mesh.sh'
+ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/verify-mesh.sh"
 ```
 
-After that, every domain serves `/install` returning the same bash
-script, and `/` returning a niche-tuned landing page.
+**Phase B — bulk DNS for the ~1,500 mesh nodes (~30 min once API key is ready)**
 
-## Per-domain landing customization
+```bash
+# Pre-flight (do once at https://ap.www.namecheap.com → Profile → Tools → API Access):
+#   - Enable API access
+#   - Whitelist 187.124.95.35 (the box's IP — script must run from there)
+#   - Generate API key, copy it
 
-`landing/index.html` is a template with two placeholders:
+# Then on the Hostinger box:
+ssh root@187.124.95.35
+export NC_API_USER=<your_nc_username>
+export NC_API_KEY=<your_nc_api_key>
+export NC_API_USERNAME=<your_nc_username>     # same as NC_API_USER for solo accounts
+export NC_CLIENT_IP=187.124.95.35
 
-- `{{DOMAIN}}` — full hostname (e.g. `sec-earnings-cli.xyz`)
-- `{{NICHE_HOOK}}` — niche-specific subhead (resolved from
-  `nginx/domains.list` second column)
+# Test with --limit 5 first to validate auth + DNS shape on a small batch
+python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
+    --csv /opt/gammaqc-mesh/data/domains.csv \
+    --ip 187.124.95.35 \
+    --limit 5
 
-Example `domains.list` row format:
+# If green, run the full inventory (~30 min at 45 req/min)
+python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
+    --csv /opt/gammaqc-mesh/data/domains.csv \
+    --ip 187.124.95.35
+
+# Verify a sample of the mesh now redirects
+bash /opt/gammaqc-mesh/scripts/verify-mesh.sh --samples 20
 ```
-sec-earnings-cli.xyz   For SEC-filing quants who want their earnings drops in <1 second.
-texas-energy-quant.xyz For Texas energy traders who need Bloomberg-grade vol on a laptop.
-```
 
-The render script substitutes these per-domain at deploy time, so each
-domain has organically-different content for SEO without manual work.
+**Phase C — optional HTTPS rollout on mesh nodes (weeks-long, only if needed)**
 
-## Why not Cloudflare in front?
+Skip unless users complain about needing `https://1334077.xyz` directly. For
+`curl -sL` with redirects, HTTP-only on the mesh is fine — curl follows the
+301 to HTTPS canonical automatically. If/when needed, see Phase C in CHANGELOG.
 
-A CDN sees every install request. The sovereign promise of this tool
-is "your data NEVER leaves your machine in free mode." Putting CF in
-front would mean Cloudflare sees:
-- Your IP
-- Which niche domain referred you
-- A fingerprint of your install events
+## Privacy contracts
 
-Origin-only with LE certs preserves the honest contract: only Hostinger
-+ you see your install request, and even those logs rotate every 7 days.
+- The **canonical endpoint** terminates TLS directly on the Hostinger box.
+  No CDN in front. No third-party in the install path.
+- The **mesh redirect fabric** is HTTP-only by design. It logs request lines
+  but NEVER user-agent, referer, or cookies (per `log_format mesh_privacy`),
+  and strips the last IPv4 octet to /24 before logging. 7-day retention.
+- The **install script** makes ONE network call: `pip install gammaqc-terminal`
+  from PyPI. No telemetry. No phone-home. Verify before piping:
+  `curl -sL https://install.gammaqc.com/install | less`
 
-When traffic warrants, the next step is **anycast on sovereign rails**
-(XRPL/Carterra) — NOT a third-party CDN.
+## Why HTTP on the mesh is OK
+
+The install script contains no secrets. It's a 30-line bash script that:
+1. Detects pipx or pip
+2. Runs `pipx install gammaqc-terminal` (which fetches from PyPI over HTTPS)
+
+The only HTTPS-required surface is the PyPI download itself, which is
+handled by pip with its own cert validation. The mesh redirect happens
+BEFORE any download — by the time bytes flow, we're already on the
+canonical's HTTPS connection or on PyPI's.
+
+This is the same pattern `get.docker.com` and `sh.rustup.rs` use for their
+install vectors.

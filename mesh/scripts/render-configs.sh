@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
-# render-configs.sh — expand the templates into per-domain artifacts.
+# render-configs.sh — render the canonical install endpoint + the mesh
+# default-redirect server block, and CLEAN UP any stale per-niche configs
+# from prior mesh designs.
 #
-# Reads:   $MESH_ROOT/nginx/gammaqc-mesh.conf (template)
-#          $MESH_ROOT/nginx/domains.list      (domain + niche_hook list)
-#          $MESH_ROOT/landing/index.html      (landing template)
-#          $MESH_ROOT/landing/install         (the curl-pipe-bash script)
+# v0.3 architecture:
+#   - install.gammaqc.com is the canonical brand URL (single LE cert,
+#     full HTTPS, serves landing + /install + /sbom + /healthz)
+#   - ~1,500 numeric .xyz domains point DNS A-records at this box; the
+#     default-server block catches their Host headers and 301-redirects
+#     any path to https://install.gammaqc.com$request_uri
 #
-# Writes:  /etc/nginx/sites-available/<domain>.conf  (one per domain)
-#          /etc/nginx/sites-enabled/<domain>.conf    (symlinks)
-#          /var/www/gammaqc-mesh/<domain>/index.html
-#          /var/www/gammaqc-mesh/<domain>/install
-#          /var/www/gammaqc-mesh/<domain>/sbom.json
+# Reads:   $MESH_ROOT/nginx/canonical-http.conf    (pre-cert template)
+#          $MESH_ROOT/nginx/canonical.conf         (post-cert template)
+#          $MESH_ROOT/nginx/default-redirect.conf  (mesh fabric catch-all)
+#          $MESH_ROOT/landing/index.html           (universal landing)
+#          $MESH_ROOT/landing/install              (curl-pipe-bash script)
+#
+# Writes:  /etc/nginx/sites-available/install.gammaqc.com.conf
+#          /etc/nginx/sites-available/default-redirect.conf
+#          /etc/nginx/sites-enabled/{install.gammaqc.com,default-redirect}.conf  (symlinks)
+#          /var/www/gammaqc-mesh/install.gammaqc.com/{index.html,install,sbom.json}
+#
+# Removes: any stale per-domain configs from the v0.1/v0.2 niche-mesh design.
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -19,86 +30,96 @@ MESH_ROOT="${MESH_ROOT:-/opt/gammaqc-mesh}"
 WEB_ROOT="/var/www/gammaqc-mesh"
 SITES_AVAIL="/etc/nginx/sites-available"
 SITES_ENAB="/etc/nginx/sites-enabled"
+CANONICAL_HOST="install.gammaqc.com"
 
-TEMPLATE_NGINX_FULL="$MESH_ROOT/nginx/gammaqc-mesh.conf"
-TEMPLATE_NGINX_HTTP="$MESH_ROOT/nginx/gammaqc-mesh-http.conf"
+TEMPLATE_CANONICAL_HTTP="$MESH_ROOT/nginx/canonical-http.conf"
+TEMPLATE_CANONICAL_FULL="$MESH_ROOT/nginx/canonical.conf"
+TEMPLATE_DEFAULT="$MESH_ROOT/nginx/default-redirect.conf"
 TEMPLATE_LANDING="$MESH_ROOT/landing/index.html"
 INSTALL_SCRIPT="$MESH_ROOT/landing/install"
-DOMAINS_FILE="$MESH_ROOT/nginx/domains.list"
 
-[ -f "$TEMPLATE_NGINX_FULL" ] || { echo "missing $TEMPLATE_NGINX_FULL"; exit 1; }
-[ -f "$TEMPLATE_NGINX_HTTP" ] || { echo "missing $TEMPLATE_NGINX_HTTP"; exit 1; }
-[ -f "$TEMPLATE_LANDING" ]    || { echo "missing $TEMPLATE_LANDING"; exit 1; }
-[ -f "$INSTALL_SCRIPT" ]      || { echo "missing $INSTALL_SCRIPT"; exit 1; }
-[ -f "$DOMAINS_FILE" ]        || { echo "missing $DOMAINS_FILE"; exit 1; }
+for f in "$TEMPLATE_CANONICAL_HTTP" "$TEMPLATE_CANONICAL_FULL" \
+         "$TEMPLATE_DEFAULT" "$TEMPLATE_LANDING" "$INSTALL_SCRIPT"; do
+    [ -f "$f" ] || { echo "missing $f"; exit 1; }
+done
 
-# Resolve published gammaqc-terminal version (for the SBOM). Fall back to
-# 'unknown' if PyPI is unreachable — never fail the render on network glitch.
+# Resolve published gammaqc-terminal version from PyPI for the SBOM.
 PKG_VER="$(curl -fsS --max-time 5 'https://pypi.org/pypi/gammaqc-terminal/json' 2>/dev/null \
             | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])' \
             2>/dev/null || echo unknown)"
 RENDER_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-count=0
-while IFS=$'\t' read -r domain niche_hook; do
-    # Skip comments + blank lines
-    [[ "$domain" =~ ^[[:space:]]*# ]] && continue
-    [ -z "${domain// }" ] && continue
-    # Strip whitespace
-    domain="${domain// /}"
-    niche_hook="${niche_hook## }"
+# ─── 1. Clean up stale per-niche configs from the v0.1/v0.2 design ───────────
+# These were rendered when domains.list had 50 made-up niche-themed .xyz names.
+# Commander's real inventory is ~1,500 NUMERIC .xyz; per-niche configs are
+# obsolete. Match the pattern that render-configs v0.2 wrote (xyz.conf without
+# being install.gammaqc.com or default-redirect, in sites-enabled).
+echo "[render-configs] cleaning up stale per-niche server blocks…"
+cleanup_count=0
+for f in "$SITES_ENAB"/*.xyz.conf "$SITES_AVAIL"/*.xyz.conf; do
+    [ -f "$f" ] || continue
+    rm -f "$f"
+    cleanup_count=$((cleanup_count + 1))
+done
+# Also nuke stale per-niche www-roots (we keep only the canonical's web-root).
+for d in "$WEB_ROOT"/*.xyz; do
+    [ -d "$d" ] || continue
+    rm -rf "$d"
+done
+echo "[render-configs] removed $cleanup_count stale .conf file(s)"
 
-    # 1. nginx server block — pick template based on cert existence.
-    #
-    # PRE-CERT path: Let's Encrypt hasn't issued yet → render HTTP-only
-    # template so Nginx loads cleanly (the full template's HTTPS section
-    # references a fullchain.pem that doesn't exist yet, which makes
-    # `nginx -t` fail with BIO_new_file SSL error).
-    #
-    # POST-CERT path: cert exists → render the full template (HTTP→HTTPS
-    # redirect + HTTPS server block + HSTS).
-    #
-    # certbot-bulk.sh re-runs this script after each successful cert
-    # issuance, so domains transition pre-cert → post-cert one at a time.
-    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
-        sed -e "s|{{DOMAIN}}|${domain}|g" \
-            "$TEMPLATE_NGINX_FULL" > "$SITES_AVAIL/${domain}.conf"
-    else
-        sed -e "s|{{DOMAIN}}|${domain}|g" \
-            "$TEMPLATE_NGINX_HTTP" > "$SITES_AVAIL/${domain}.conf"
-    fi
-    ln -sf "$SITES_AVAIL/${domain}.conf" "$SITES_ENAB/${domain}.conf"
+# ─── 2. Render canonical install.gammaqc.com server block ────────────────────
+# Pick pre-cert (HTTP-only) or post-cert (full HTTPS) based on cert presence.
+if [ -f "/etc/letsencrypt/live/${CANONICAL_HOST}/fullchain.pem" ]; then
+    echo "[render-configs] canonical cert present → rendering full HTTPS"
+    cp "$TEMPLATE_CANONICAL_FULL" "$SITES_AVAIL/${CANONICAL_HOST}.conf"
+else
+    echo "[render-configs] canonical cert absent → rendering pre-cert (HTTP-only)"
+    cp "$TEMPLATE_CANONICAL_HTTP" "$SITES_AVAIL/${CANONICAL_HOST}.conf"
+fi
+ln -sf "$SITES_AVAIL/${CANONICAL_HOST}.conf" "$SITES_ENAB/${CANONICAL_HOST}.conf"
 
-    # 2. landing page
-    install -d -m 0755 "$WEB_ROOT/${domain}"
-    sed -e "s|{{DOMAIN}}|${domain}|g" \
-        -e "s|{{NICHE_HOOK}}|${niche_hook}|g" \
-        "$TEMPLATE_LANDING" > "$WEB_ROOT/${domain}/index.html"
-
-    # 3. install script (byte-identical across domains)
-    install -m 0644 "$INSTALL_SCRIPT" "$WEB_ROOT/${domain}/install"
-
-    # 4. SBOM — small JSON manifest describing what gets installed
-    cat > "$WEB_ROOT/${domain}/sbom.json" <<EOF
+# Render landing page + install script + SBOM for the canonical web root
+install -d -m 0755 "$WEB_ROOT/${CANONICAL_HOST}"
+cp "$TEMPLATE_LANDING"  "$WEB_ROOT/${CANONICAL_HOST}/index.html"
+cp "$INSTALL_SCRIPT"    "$WEB_ROOT/${CANONICAL_HOST}/install"
+cat > "$WEB_ROOT/${CANONICAL_HOST}/sbom.json" <<EOF
 {
   "package": "gammaqc-terminal",
   "version_pinned": "${PKG_VER}",
   "source": "PyPI",
-  "install_command": "curl -sL https://${domain}/install | bash",
+  "install_command": "curl -sL https://${CANONICAL_HOST}/install | bash",
   "install_method": "pipx (preferred) or pip3 --user (fallback)",
   "telemetry": false,
   "third_party_calls_during_install": ["pypi.org"],
   "license": "Apache-2.0",
   "source_code": "https://github.com/NoirLynX-Intelligence/gammaqc-terminal",
   "rendered_at": "${RENDER_TS}",
-  "mesh_domain": "${domain}"
+  "canonical_host": "${CANONICAL_HOST}",
+  "mesh_node_count": 1500
 }
 EOF
 
-    count=$((count + 1))
-done < "$DOMAINS_FILE"
+# ─── 3. Render the mesh default-redirect server block ────────────────────────
+# Catches every Host header that doesn't match install.gammaqc.com →
+# 301 to https://install.gammaqc.com$request_uri. Works for any of the
+# ~1,500 numeric .xyz mesh nodes pointed at this box.
+cp "$TEMPLATE_DEFAULT" "$SITES_AVAIL/default-redirect.conf"
+ln -sf "$SITES_AVAIL/default-redirect.conf" "$SITES_ENAB/default-redirect.conf"
 
-# Set perms for nginx user
+# Also remove Hostinger's default Ubuntu welcome page server block if it's
+# still present + symlinked — its default_server directive on :80 would
+# CONFLICT with our new default-redirect.conf (only ONE default_server
+# allowed per address:port pair).
+if [ -L "$SITES_ENAB/default" ] || [ -f "$SITES_ENAB/default" ]; then
+    rm -f "$SITES_ENAB/default"
+    echo "[render-configs] removed Hostinger default server symlink "\
+         "(conflicted with our default-redirect default_server)"
+fi
+
 chown -R www-data:www-data "$WEB_ROOT"
 
-echo "[render-configs] rendered $count domains"
+echo "[render-configs] rendered:"
+echo "  - canonical: ${CANONICAL_HOST}"
+echo "  - default-redirect: catches any other Host → 301 https://${CANONICAL_HOST}"
+echo "  - cleaned up: $cleanup_count stale per-niche .conf file(s)"
