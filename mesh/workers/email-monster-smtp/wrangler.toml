@@ -1,0 +1,47 @@
+# Wrangler config for email-monster-smtp Worker upgrade.
+# Drop into your existing email-monster-smtp Worker directory in the
+# separate dev session, OR `wrangler init` a fresh project pointing at
+# worker.js in this directory.
+
+name = "email-monster-smtp"
+main = "worker.js"
+compatibility_date = "2026-06-08"
+# Module-syntax compat needed for `export default { fetch }` pattern.
+compatibility_flags = ["nodejs_compat"]
+
+# ───────── secrets (set via `wrangler secret put <NAME>`) ─────────
+# DO NOT commit values. These live only in the Worker secret store.
+#
+# wrangler secret put INTERNAL_SHARED_SECRET
+#   (same value sync'd to drklynx-auth, drklynx-domains,
+#    microhost-provisioner, gammaqc-backend fly.io secret)
+#
+# wrangler secret put CF_EMAIL_TOKEN
+#   (Cloudflare API token with "Email Sending: Edit" permission,
+#    scoped to account f9bc2c79be568de141c110b0d74ca47d)
+#
+# wrangler secret put CF_ACCOUNT_ID
+#   (the account UUID — set to f9bc2c79be568de141c110b0d74ca47d
+#    unless rotating account)
+#
+# (No `vars` block — everything sensitive is a secret.)
+
+# ───────── D1 ledger (optional but recommended) ─────────
+# Bind monster-vault-db for the email_sends_ledger table. Worker
+# degrades gracefully if this binding is absent (logs send, skips
+# ledger row).
+[[d1_databases]]
+binding = "MONSTER_VAULT_DB"
+database_name = "monster-vault-db"
+# database_id = "<UUID from `wrangler d1 list`>"
+# (Set this when you wire to the real D1 — Worker checks for the
+# binding before writing, so the value is only consulted at runtime.)
+
+# ───────── Workers.dev subdomain (NOT a Custom Domain) ─────────
+# This Worker is INTERNAL — only callable from other Workers or trusted
+# server-side callers with INTERNAL_SHARED_SECRET. Keep it on the
+# workers.dev subdomain so it never accidentally faces the open internet
+# at a branded URL.
+workers_dev = true
+# Default URL: email-monster-smtp.drklynx-os.workers.dev
+# (matches the integration spec URL the backend uses)
