@@ -109,9 +109,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 8
-    environment:
-      name: pypi
-      url: https://pypi.org/p/gammaqc-terminal
+    # NOTE: intentionally no `environment:` block. Adding `environment: pypi`
+    # creates a deployment environment that scopes secrets to that
+    # environment only — repo-level PYPI_API_TOKEN would NOT propagate. We
+    # learned this the hard way on the v0.2.0 first-publish attempt (the
+    # workflow fell back to OIDC because PYPI_API_TOKEN was invisible inside
+    # the environment scope). Once we move to Trusted Publisher OIDC, we
+    # can re-add `environment: pypi` and configure the publisher to match.
+    env:
+      # Bind the secret at job level so we can also check it in `if:` blocks.
+      PYPI_TOKEN_PRESENT: ${{ secrets.PYPI_API_TOKEN != '' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -120,12 +127,14 @@ jobs:
 
       - name: Decide auth path (Trusted Publisher OIDC OR token)
         id: auth
+        env:
+          TOKEN_PRESENT: ${{ env.PYPI_TOKEN_PRESENT }}
         run: |
-          # Trusted Publisher is preferred (no rotatable secret to leak).
-          # If the environment is configured for it, the next step's
-          # pypa/gh-action-pypi-publish picks it up automatically.
-          # We surface here which auth mode we're in for log clarity.
-          if [ -n "${{ secrets.PYPI_API_TOKEN }}" ]; then
+          # The job-level env binding above flattens `secrets.X != ''` to a
+          # 'true'/'false' string we can compare cleanly. Direct
+          # `${{ secrets.X }}` interpolation inside a bash heredoc is brittle
+          # under environment scoping.
+          if [ "$TOKEN_PRESENT" = "true" ]; then
             echo "mode=token" >> "$GITHUB_OUTPUT"
             echo "::notice::Publishing with PYPI_API_TOKEN (legacy auth)"
           else
