@@ -27,6 +27,26 @@
               pip install gammaqc-terminal    ← already live on PyPI
 ```
 
+## Domain inventory allocation (Commander 2026-06-09)
+
+The full ~1,500-domain numeric .xyz inventory is shared across projects:
+
+| Allocation | Pattern | Count | Use |
+|---|---|---|---|
+| **GammaQC** | `^1333\d{3}\.xyz$` (capped at 1000) | 923 | This install fabric — redirect mesh to install.gammaqc.com |
+| **DrkLynX** | `1334xxx.xyz` + `1411xxx.xyz` + named | 603 | Sovereign edge mesh — separate use; not touched by this repo |
+
+The partition is **hard-coded** in `scripts/extract-gammaqc-domains.py` so the
+bulk-DNS script can never accidentally claim a DrkLynX domain — only the 923
+allocated to GammaQC ever get A-records flipped to point at this box.
+
+To regenerate the allocation file (e.g. when you import a new NameCheap CSV):
+```bash
+python3 mesh/scripts/extract-gammaqc-domains.py \
+    --input <new-namecheap-export>.csv \
+    --output mesh/data/domains-gammaqc.csv
+```
+
 ## What's in this directory
 
 ```
@@ -70,7 +90,7 @@ ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/certbot-canonical.sh"
 ssh root@187.124.95.35 "bash /opt/gammaqc-mesh/scripts/verify-mesh.sh"
 ```
 
-**Phase B — bulk DNS for the ~1,500 mesh nodes (~30 min once API key is ready)**
+**Phase B — bulk DNS for the 923 GammaQC mesh nodes (~21 min once API key is ready)**
 
 ```bash
 # Pre-flight (do once at https://ap.www.namecheap.com → Profile → Tools → API Access):
@@ -86,14 +106,16 @@ export NC_API_USERNAME=<your_nc_username>     # same as NC_API_USER for solo acc
 export NC_CLIENT_IP=187.124.95.35
 
 # Test with --limit 5 first to validate auth + DNS shape on a small batch
+# The pre-allocated GammaQC list lives at mesh/data/domains-gammaqc.csv
+# (923 domains from the 1333xxx range — DrkLynX domains EXCLUDED by partition).
 python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
-    --csv /opt/gammaqc-mesh/data/domains.csv \
+    --csv /opt/gammaqc-mesh/data/domains-gammaqc.csv \
     --ip 187.124.95.35 \
     --limit 5
 
-# If green, run the full inventory (~30 min at 45 req/min)
+# If green, run the full GammaQC allocation (~21 min at 45 req/min)
 python3 /opt/gammaqc-mesh/scripts/namecheap-bulk-dns.py \
-    --csv /opt/gammaqc-mesh/data/domains.csv \
+    --csv /opt/gammaqc-mesh/data/domains-gammaqc.csv \
     --ip 187.124.95.35
 
 # Verify a sample of the mesh now redirects

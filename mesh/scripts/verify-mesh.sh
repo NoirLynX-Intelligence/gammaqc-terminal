@@ -23,8 +23,12 @@ CANONICAL_HOST="${CANONICAL_HOST:-install.gammaqc.com}"
 TIMEOUT="${TIMEOUT:-10}"
 SAMPLES="${SAMPLES:-3}"
 SAMPLE_DOMAINS=(
-    "1334077.xyz" "1333500.xyz" "1411050.xyz"
+    "1333000.xyz" "1333500.xyz" "1333998.xyz"
 )
+# Sample domains are all from the GammaQC allocation (1333xxx range).
+# DrkLynX domains (1334xxx, 1411xxx, named) are deliberately NOT tested
+# from this script — they're under separate ownership and shouldn't have
+# been flipped to this box.
 
 # Allow --samples N to override
 while [ $# -gt 0 ]; do
