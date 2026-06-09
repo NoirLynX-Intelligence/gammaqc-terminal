@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{DOMAIN}} — gammaqc-terminal</title>
+<meta name="description" content="{{NICHE_HOOK}}">
+<!-- Swiss-Brutalist. Inline CSS only — CSP default-src 'none' blocks everything else.
+     No JS, no third-party fonts, no analytics, no cookies. The page IS the proof. -->
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#0a0a0a;color:#e8e8e8;font-family:ui-monospace,Menlo,"SF Mono",Consolas,monospace;font-size:15px;line-height:1.6;min-height:100vh}
+body{padding:48px 24px;max-width:760px;margin:0 auto}
+header{margin-bottom:48px;border-bottom:1px solid #1f1f1f;padding-bottom:32px}
+h1{font-size:28px;font-weight:700;letter-spacing:-0.02em;margin-bottom:8px;color:#ffffff}
+h1 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;margin-left:8px;background:#1a1a1a;color:#888;border:1px solid #2a2a2a;vertical-align:middle;letter-spacing:0.05em}
+h2{font-size:18px;font-weight:400;color:#a0a0a0;line-height:1.45;margin-top:8px}
+section{margin-bottom:40px}
+section h3{font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#666;margin-bottom:14px}
+pre{background:#000;border:1px solid #1f1f1f;padding:18px 20px;overflow-x:auto;font-size:13.5px;color:#ffffff;border-radius:2px}
+pre.copy{cursor:text;user-select:all}
+.cmd-line{color:#5fb3fd}
+.cmd-prompt{color:#666;user-select:none}
+.cmd-comment{color:#666}
+ul{list-style:none}
+li{padding:8px 0;border-bottom:1px solid #161616;color:#c8c8c8}
+li:last-child{border-bottom:none}
+li code{background:#000;padding:1px 6px;color:#5fb3fd;font-size:13px}
+li .note{color:#888;font-size:13px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.row .lh{color:#e8e8e8}
+.row .rh{color:#666;font-size:12px;white-space:nowrap}
+footer{margin-top:64px;padding-top:32px;border-top:1px solid #1f1f1f;color:#666;font-size:12px}
+footer a{color:#888;text-decoration:underline;text-decoration-color:#333}
+footer a:hover{color:#ccc;text-decoration-color:#888}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 6px;background:#1a1a1a;color:#888;border:1px solid #2a2a2a;letter-spacing:0.08em;margin-right:6px}
+@media (max-width:520px){body{padding:24px 16px}h1{font-size:22px}h2{font-size:16px}pre{font-size:12.5px}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>gammaqc-terminal <span class="badge">v0.2</span></h1>
+  <h2>{{NICHE_HOOK}}</h2>
+</header>
+
+<section>
+  <h3>Install (one line)</h3>
+  <pre class="copy"><span class="cmd-prompt">$ </span><span class="cmd-line">curl -sL https://{{DOMAIN}}/install | bash</span></pre>
+</section>
+
+<section>
+  <h3>Then</h3>
+  <pre class="copy"><span class="cmd-prompt">$ </span><span class="cmd-line">gamma analyze NVDA</span>
+<span class="cmd-prompt">$ </span><span class="cmd-line">gamma shock --portfolio ./holdings.csv --event "Fed raises rates 50bps"</span>
+<span class="cmd-prompt">$ </span><span class="cmd-line">gamma watch NVDA --trigger "volume_spike &gt; 3.0"</span></pre>
+</section>
+
+<section>
+  <h3>What it does (free tier, no account)</h3>
+  <ul>
+    <li><div class="row"><span class="lh"><code>gamma analyze</code> &nbsp; SEC filings + quote + structural read</span><span class="rh">offline-safe</span></div></li>
+    <li><div class="row"><span class="lh"><code>gamma shock</code> &nbsp; portfolio Blast Radius vs macro events</span><span class="rh">CSV stays local</span></div></li>
+    <li><div class="row"><span class="lh"><code>gamma watch</code> &nbsp; headless daemon, fires native desktop alerts</span><span class="rh">no telemetry</span></div></li>
+    <li><div class="row"><span class="lh"><code>gamma scrape</code> &nbsp; raw JSON to stdout for piping into your bots</span><span class="rh">pipe-friendly</span></div></li>
+    <li><div class="row"><span class="lh"><code>gamma card</code> &nbsp; Swiss-Brutalist Trader Card render</span><span class="rh">PQC-sealed receipt</span></div></li>
+  </ul>
+</section>
+
+<section>
+  <h3>Privacy contract</h3>
+  <ul>
+    <li><span class="tag">CSV</span><span class="lh">Your holdings file NEVER leaves your machine in free mode. Run with the network off — <code>gamma shock</code> still works.</span></li>
+    <li><span class="tag">INSTALL</span><span class="lh">The install script makes ZERO telemetry calls. Only the package download. Verify it first: <code>curl -sL https://{{DOMAIN}}/install | less</code></span></li>
+    <li><span class="tag">KEY</span><span class="lh">API keys (if you authenticate to Pro) are stored at your OS config dir with 0600 perms. Never logged, never echoed.</span></li>
+    <li><span class="tag">SBOM</span><span class="lh">Manifest of what gets installed: <a href="/sbom">https://{{DOMAIN}}/sbom</a></span></li>
+  </ul>
+</section>
+
+<section>
+  <h3>Pro tier (when you want it)</h3>
+  <ul>
+    <li><span class="lh">10-Seat Sacred Council split on every Trader Card.</span></li>
+    <li><span class="lh">PQC-sealed compliance receipts on every Ghost-Watcher daemon fire.</span></li>
+    <li><span class="lh">Algorithmic Hedge Strategy generation: <code>gamma shock --hedge</code></span></li>
+    <li><span class="lh">Backend Warren-Voice (LLM-graded structural read with attestation hash).</span></li>
+  </ul>
+  <p style="margin-top:14px;color:#888;font-size:13px">&dollar;49/mo. No tracking, no upsells. <a href="https://gammaqc.com/pro" style="color:#5fb3fd">gammaqc.com/pro</a></p>
+</section>
+
+<footer>
+  <p>
+    Source: <a href="https://github.com/NoirLynX-Intelligence/gammaqc-terminal">github.com/NoirLynX-Intelligence/gammaqc-terminal</a>
+    &nbsp;&middot;&nbsp; Apache-2.0
+    &nbsp;&middot;&nbsp; <a href="/sbom">SBOM</a>
+    &nbsp;&middot;&nbsp; <a href="/install">install.sh</a>
+  </p>
+  <p style="margin-top:8px;color:#444">
+    This domain is one of 500 niche-tuned gateways. All install the same package.
+    Zero analytics on this page. No cookies set.
+  </p>
+</footer>
+
+</body>
+</html>

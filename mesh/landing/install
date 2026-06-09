@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# gammaqc-terminal — sovereign-mesh install script.
+#
+# Served from any of the 500 .xyz domains; the script itself is
+# byte-identical regardless of which domain the user curled. Verify
+# the SBOM at https://<DOMAIN>/sbom to see exactly what gets installed.
+#
+# Privacy contract: this script makes ONE network call — the pip/pipx
+# install of `gammaqc-terminal` from PyPI. No telemetry, no analytics,
+# no phone-home. If you want analytics, opt in explicitly with
+# `gamma login --api-key`.
+
+set -euo pipefail
+
+PKG_NAME="gammaqc-terminal"
+INSTALL_URL="${GAMMAQC_INSTALL_URL:-$PKG_NAME}"
+
+c_red()    { printf '\033[31m%s\033[0m\n' "$*"; }
+c_green()  { printf '\033[32m%s\033[0m\n' "$*"; }
+c_yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
+c_dim()    { printf '\033[2m%s\033[0m\n' "$*"; }
+c_bold()   { printf '\033[1m%s\033[0m\n' "$*"; }
+
+c_bold "▌ gammaqc-terminal — Sovereign Quant CLI"
+c_dim "  Free at the surface. PQC-sealed at the wall."
+echo
+
+# Python 3.10+ required
+if ! command -v python3 >/dev/null 2>&1; then
+    c_red "✗ python3 not found on PATH."
+    echo  "  Install Python 3.10+ from https://www.python.org/downloads/ and re-run."
+    exit 1
+fi
+PY_VERSION="$(python3 -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')"
+PY_MAJOR="$(printf "%s" "$PY_VERSION" | cut -d. -f1)"
+PY_MINOR="$(printf "%s" "$PY_VERSION" | cut -d. -f2)"
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
+    c_red "✗ Python 3.10+ required (found $PY_VERSION)."
+    exit 1
+fi
+c_green "✓ Python $PY_VERSION detected"
+
+# pipx preferred (isolated venv) → pip3 --user fallback
+if command -v pipx >/dev/null 2>&1; then
+    c_dim "  Using pipx (isolated install)"
+    pipx install --force "$INSTALL_URL"
+elif command -v pip3 >/dev/null 2>&1; then
+    c_yellow "⚠ pipx not found; falling back to pip3 --user"
+    c_dim "  Recommended: install pipx via 'python3 -m pip install --user pipx'"
+    pip3 install --user --upgrade "$INSTALL_URL"
+else
+    c_red "✗ Neither pipx nor pip3 found. Install one and re-run."
+    exit 1
+fi
+
+if command -v gamma >/dev/null 2>&1; then
+    c_green "✓ gammaqc-terminal installed"
+    echo
+    c_bold "▌ Quick start"
+    echo "  gamma analyze NVDA"
+    echo "  gamma shock --portfolio ./holdings.csv --event 'Fed raises rates 50bps'"
+    echo "  gamma watch NVDA --trigger 'pct_change < -3.0'"
+    echo
+    c_dim "  Pro features (10-Seat Council, PQC receipts, hedge generation):"
+    c_dim "    gamma login --api-key <KEY>  (get one at https://gammaqc.com/pro)"
+else
+    c_yellow "⚠ Install succeeded but 'gamma' is not on PATH."
+    echo  "  pipx default:  ~/.local/bin  (macOS/Linux)  or  %USERPROFILE%\\.local\\bin (Windows)"
+    echo  "  Re-open your shell and run: gamma --help"
+    exit 2
+fi

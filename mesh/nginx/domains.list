@@ -1,0 +1,68 @@
+# gammaqc-mesh domain manifest — 50 seed domains (expand to 500 in batches
+# of 50 to stay under Let's Encrypt's per-week cert rate-limit).
+#
+# Format: <domain>\t<niche_hook_one_liner>
+#
+# The niche_hook becomes the landing page H2. Keep it ONE sentence, ≤120
+# chars. Write it the way a quant would describe the tool to themselves
+# at 11pm before earnings — specific, technical, no marketing tone.
+
+# === Tier 1: SEC / earnings / filings (10 domains) ===
+sec-earnings-cli.xyz	SEC filing drops in your terminal under 1 second, no Bloomberg required.
+edgar-tape-watch.xyz	Watch EDGAR for new 8-Ks on your tickers; fires native desktop alerts.
+form4-insider-feed.xyz	Insider-buying 4-filings, polled in the background while you sleep.
+earnings-whisper-quant.xyz	Pre-earnings positioning read with cryptographic timestamp proof.
+10q-diff-tape.xyz	What changed in this quarter's 10-Q vs the last one, line-by-line.
+13f-shift-cli.xyz	Quarterly 13F shifts surfaced as ticker-level deltas, not PR releases.
+proxy-vote-quant.xyz	Proxy season activism tracked from the terminal; PQC-sealed receipts.
+ipo-s1-watch.xyz	S-1 filings, lockup expirations, secondary offerings — one CLI feed.
+8k-material-alert.xyz	Material 8-K events flagged the moment they hit EDGAR.
+spac-merger-tape.xyz	SPAC trust shifts, redemption deadlines, sponsor warrants — terminal-native.
+
+# === Tier 2: Crypto / digital assets (10 domains) ===
+crypto-options-tape.xyz	Deribit + CME options flow on BTC/ETH from your local box.
+defi-tvl-shock-test.xyz	Stress-test your DeFi positions against bridge exploit + depeg scenarios.
+on-chain-whale-watch.xyz	Watch wallets above $10M for movement; fires a desktop alert when they shift.
+stablecoin-depeg-cli.xyz	Real-time depeg monitor for USDC/USDT/DAI; webhook on >0.5% deviation.
+btc-mempool-quant.xyz	Mempool fee + congestion read for your local trading bot.
+crypto-compliance-cli.xyz	OFAC + sanctions sweep on your wallet addresses; PQC-sealed audit log.
+miner-flow-tape.xyz	Bitcoin miner outflows to exchanges, surfaced as a flow signal.
+funding-rate-quant.xyz	Perpetual swap funding rates across 8 exchanges; arbitrage spread alerts.
+mev-frontrun-cli.xyz	Detect MEV bots front-running YOUR pending transactions.
+nft-floor-shock-test.xyz	Floor-price stress test for your NFT holdings against liquidity crises.
+
+# === Tier 3: Energy / commodities (10 domains) ===
+texas-energy-quant.xyz	Texas power grid + ERCOT futures terminal for energy quants.
+brent-wti-spread-cli.xyz	Brent-WTI crack spread monitor; trigger alerts on spread inversions.
+nat-gas-storage-tape.xyz	EIA natural gas storage reports parsed the second they drop.
+oil-vol-shock-test.xyz	Stress-test your energy book against OPEC surprises, hurricane disruption.
+copper-china-pulse.xyz	China copper warehouse stocks + LME spread; macro pulse for industrials.
+gold-silver-ratio-cli.xyz	Gold/silver ratio + COT positioning surfaced in one terminal feed.
+shale-rig-count-watch.xyz	Baker Hughes rig count + DUC inventory deltas, weekly.
+agricultural-cot-tape.xyz	Commitment of Traders for corn/wheat/soy — managed money positioning.
+refining-margin-quant.xyz	Crack spreads across 3-2-1 + 5-3-2; refining margin alerts.
+power-grid-stress-cli.xyz	US regional grid stress monitor; predicts power-price spikes 2-4hr ahead.
+
+# === Tier 4: Fixed income / rates (10 domains) ===
+yield-curve-shock-test.xyz	Test your bond portfolio against parallel + steepener + inversion scenarios.
+fomc-decision-tape.xyz	Fed dot-plot + statement diff parsed in real-time on FOMC day.
+muni-bond-watch.xyz	Municipal bond credit deteriorations + downgrade watch.
+high-yield-spread-cli.xyz	HY spread compression/widening signals; recession-onset early warning.
+duration-risk-quant.xyz	Real-time portfolio duration; auto-rebalance suggestions on rate shifts.
+ois-fx-arbitrage-cli.xyz	OIS vs FX-implied rate arbitrage opportunities across G10.
+treasury-auction-tape.xyz	Treasury auction results parsed in real-time; bid-cover anomaly alerts.
+swap-spread-shock-test.xyz	Stress-test swap-spread positions against repo market dislocations.
+credit-default-watch.xyz	CDS spreads for IG + HY single names; widening alerts.
+em-debt-stress-cli.xyz	Emerging-market sovereign debt stress monitor; default probability ranks.
+
+# === Tier 5: Compliance / risk (10 domains) ===
+swiss-crypto-audit.xyz	Swiss FINMA-style compliance audit on your crypto wallet flows.
+mifid-best-execution-cli.xyz	MiFID II best-execution reports for your retail trade log; PQC-signed.
+sec-rule-606-quant.xyz	Generate Rule 606 disclosures for your routed orders.
+dodd-frank-swap-tape.xyz	Dodd-Frank swap reporting surface; SDR-compliant in one command.
+gdpr-data-export-cli.xyz	Generate GDPR data-export bundles for your own trading account history.
+cfpb-complaint-watch.xyz	Track CFPB complaints against your custodian / broker.
+fatf-sanctions-cli.xyz	FATF + OFAC + EU sanctions sweep on counterparty addresses.
+finra-leverage-quant.xyz	FINRA Rule 4210 portfolio margin calculator with PQC-sealed receipt.
+basel-iii-stress-test.xyz	Basel III stress-test framework applied to your retail trading book.
+mar-insider-watch.xyz	EU MAR insider-information tracking for your watchlist tickers.

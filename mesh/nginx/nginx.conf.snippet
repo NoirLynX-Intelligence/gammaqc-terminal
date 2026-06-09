@@ -1,0 +1,34 @@
+# Drop-in for the main nginx.conf http {} block. bootstrap.sh adds an
+# `include /etc/nginx/snippets/gammaqc-mesh.conf;` line inside http {}.
+#
+# Two purposes:
+#   1. Define the privacy-respecting log format used by every server block
+#   2. Tighten the defaults that ship with Hostinger's Nginx package
+#      (server_tokens off, sane buffer sizes, etc.)
+
+# Privacy log format — last IPv4 octet stripped to /24 bucket. NEVER logs
+# user-agent or referer (both can carry PII). NEVER logs cookies.
+log_format mesh_privacy '$client_subnet [$time_local] '
+                       '"$request" $status $body_bytes_sent '
+                       '"$http_host"';
+
+# Don't advertise version
+server_tokens off;
+
+# Reasonable timeouts for static-only serving
+keepalive_timeout 30;
+keepalive_requests 100;
+client_body_timeout 10;
+client_header_timeout 10;
+send_timeout 10;
+
+# Gzip the landing pages (HTML compresses well; bash script + JSON too)
+gzip on;
+gzip_types text/plain text/html text/css application/json text/x-shellscript;
+gzip_min_length 256;
+gzip_vary on;
+gzip_comp_level 5;
+
+# Hide upstream errors from end-users (no stack-trace leakage)
+proxy_intercept_errors on;
+fastcgi_intercept_errors on;
