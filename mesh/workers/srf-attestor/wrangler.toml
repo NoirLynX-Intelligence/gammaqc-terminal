@@ -1,0 +1,41 @@
+# srf-attestor — Sovereign Review Fabric receipt attestor (POC).
+#
+# Deploys to attest.gammaqc.com once Custom Domain is bound on the
+# gammaqc.com zone. Until then, lives on workers.dev for internal smoke.
+
+name = "srf-attestor"
+main = "worker.js"
+compatibility_date = "2026-06-08"
+
+# Public endpoints (/verify, /healthz, /.well-known/attestor.json) need
+# the workers.dev subdomain enabled until the Custom Domain is bound.
+workers_dev = true
+
+# ───── Custom Domain (set up via CF API + dashboard once ready) ─────
+# routes = [
+#   { pattern = "attest.gammaqc.com/*", zone_name = "gammaqc.com" },
+# ]
+
+# ───── Secrets (wrangler secret put) ─────
+# SRF_INTERNAL_KEY  — Bearer token for /sign (backend calls only)
+#                     `openssl rand -hex 32`
+# SRF_PRIV_HEX      — Ed25519 private key, 32 bytes hex
+# SRF_PUB_HEX       — Ed25519 public key, 32 bytes hex
+# SRF_PUB_PREV_HEX  — optional; previous public key during 60-day
+#                     rotation overlap
+
+# Generate the keypair locally:
+#   python3 -c "
+#   from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+#   from cryptography.hazmat.primitives.serialization import (
+#       Encoding, PrivateFormat, PublicFormat, NoEncryption,
+#   )
+#   p = Ed25519PrivateKey.generate()
+#   priv = p.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+#   pub  = p.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+#   print('SRF_PRIV_HEX=' + priv.hex())
+#   print('SRF_PUB_HEX=' + pub.hex())
+#   "
+
+[vars]
+SRF_KEY_ID = "srf-2026-06"
