@@ -12,6 +12,7 @@ htmlcov/
 build/
 dist/
 *.whl
+*.tar.gz
 
 # Virtual envs
 .venv/

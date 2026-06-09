@@ -41,6 +41,7 @@ from . import __phase__, __version__
 from .auth import AuthError, require_pro, validate_key
 from .card import build_card_local, render_card, upgrade_card_via_backend
 from .config import Config
+from .hedge import HedgeError, request_hedges
 from .scraper import scrape_ticker
 from .shock import run_shock
 from .voice import warren_analyze
@@ -171,6 +172,9 @@ def shock(
                                    exists=True, file_okay=True, dir_okay=False, readable=True),
     event: str = typer.Option(..., "--event", "-e",
                               help="Plain-text event description, e.g. 'Fed raises rates 50bps'"),
+    hedge: bool = typer.Option(False, "--hedge", "-H",
+                               help="Pro-tier: request Algorithmic Hedge Strategy "
+                                    "for the bleeders (requires `gamma login --api-key`)"),
 ) -> None:
     """Portfolio Shock Matrix — local Blast Radius Report.
 
@@ -218,7 +222,29 @@ def shock(
     for w in report.warnings:
         console.print(f"[yellow]⚠ {w}[/]")
 
-    # The Trap: Algorithmic Hedge Strategy is Pro-gated
+    # v0.2: Pro-tier hedge generation
+    if hedge:
+        if not cfg.api_key:
+            err_console.print("[red]✗ --hedge requires an API key. Run [bold]gamma login --api-key <KEY>[/].[/]")
+            raise typer.Exit(code=3)
+        try:
+            with console.status("Requesting Algorithmic Hedge Strategy (backend Council)…", spinner="dots"):
+                hedge_resp = request_hedges(report, cfg)
+        except HedgeError as e:
+            err_console.print(f"[red]✗ Hedge generation failed: {e}[/]")
+            err_console.print("[dim]The local Blast Radius Report above is still actionable.[/]")
+            raise typer.Exit(code=4) from e
+
+        if hedge_resp.error:
+            # Pro-required (402) — show the wall, don't crash
+            err_console.print(f"[yellow]⚠ {hedge_resp.error}[/]")
+            err_console.print("[dim]Upgrade at https://gammaqc.com/pro to unlock per-position hedges.[/]")
+            return
+
+        _render_hedge_response(hedge_resp)
+        return
+
+    # The Trap: Algorithmic Hedge Strategy is Pro-gated (locked CTA when --hedge not passed)
     if not (cfg.api_key and cfg.pro_unlocked):
         hedge_lock = Text()
         hedge_lock.append("\n🔒 ", style="bold red")
@@ -226,9 +252,64 @@ def shock(
         hedge_lock.append(" requires 10-Seat Council Consensus.\n", style="white")
         hedge_lock.append("   Authenticate with ", style="dim")
         hedge_lock.append("gamma login --api-key <KEY>", style="bold cyan")
-        hedge_lock.append(" to unlock per-position hedge generation.\n", style="dim")
+        hedge_lock.append(" to unlock per-position hedge generation, then re-run with ", style="dim")
+        hedge_lock.append("--hedge", style="bold cyan")
+        hedge_lock.append(".\n", style="dim")
         console.print(hedge_lock)
         _print_locked_unlock_footer()
+    else:
+        # Authed but didn't pass --hedge — gentle nudge
+        console.print("[dim]\nTip: add [bold]--hedge[/] to this command for per-position hedge recommendations.[/]")
+
+
+def _render_hedge_response(resp) -> None:
+    """Pretty-print the backend Hedge response (Pro path). Separated so the
+    shock() command stays scannable."""
+    header = Text()
+    header.append("\nAlgorithmic Hedge Strategy", style="bold magenta")
+    header.append(f" — event_class=[{resp.event_class}]\n", style="dim")
+    console.print(header)
+
+    if not resp.hedges:
+        console.print("[yellow]No hedgeable bleeders in this report.[/]")
+        if resp.unhedgeable:
+            console.print("[dim]Unhedgeable positions:[/]")
+            for u in resp.unhedgeable:
+                console.print(f"  - {u.get('ticker')} ({u.get('asset_class')}): {u.get('reason', '')}")
+        return
+
+    hedge_tbl = Table(show_header=True, header_style="bold magenta", expand=True)
+    hedge_tbl.add_column("Ticker", style="bold cyan")
+    hedge_tbl.add_column("Action", style="bold")
+    hedge_tbl.add_column("Instrument")
+    hedge_tbl.add_column("Size %", justify="right", style="dim")
+    hedge_tbl.add_column("Notional", justify="right")
+    for h in resp.hedges:
+        hedge_tbl.add_row(
+            h.ticker,
+            h.hedge_action,
+            h.instrument,
+            f"{h.sizing_pct_of_position}%",
+            f"${h.hedge_notional:,.0f}",
+        )
+    console.print(hedge_tbl)
+
+    for h in resp.hedges:
+        console.print(f"[dim]  {h.ticker}: {h.rationale}[/]")
+
+    summary = Text()
+    summary.append(f"\nTotal hedge notional: ${resp.total_hedge_notional:,.0f}\n", style="bold")
+    if resp.attestation_hash:
+        summary.append(f"PQC attestation: {resp.attestation_hash[:32]}…\n", style="dim green")
+    if resp.unhedgeable:
+        summary.append(f"\n{len(resp.unhedgeable)} unhedgeable position(s):\n", style="yellow")
+        for u in resp.unhedgeable:
+            summary.append(f"  - {u.get('ticker')} ({u.get('asset_class')}): {u.get('reason', '')}\n",
+                           style="dim")
+    # Compliance footer — last hedge's disclaimer (all hedges share the same boilerplate)
+    if resp.hedges:
+        summary.append(f"\n{resp.hedges[0].disclaimer}\n", style="dim italic")
+    console.print(summary)
 
 
 @app.command()

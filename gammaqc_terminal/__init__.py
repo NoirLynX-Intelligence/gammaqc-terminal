@@ -9,5 +9,6 @@ Bound to the GammaQC sovereign backend at api.gammaqc.com when
 authenticated via `gamma login --api-key`.
 """
 
-__version__ = "0.1.0"
-__phase__ = "terminal-v0.1"   # parallel to ora-v2.0 on the backend
+__version__ = "0.2.0"
+__phase__ = "terminal-v0.2"   # parallel to ora-v2.2 on the backend
+                              # v0.2 wires gamma shock --hedge to /api/oracle/shock/hedge
