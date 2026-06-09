@@ -1,0 +1,28 @@
+# wrangler config for install-analytics-summary
+#
+# Deploy separately from gammaqc-mesh-redirect. This is the read-side
+# query Worker — not bound to any mesh zone. Lives on workers.dev
+# subdomain (internal only).
+
+name = "install-analytics-summary"
+main = "summary.js"
+compatibility_date = "2026-06-08"
+
+# Workers.dev subdomain (NOT a Custom Domain). Internal-only — only
+# callable by ops with the ANALYTICS_READ_TOKEN bearer.
+workers_dev = true
+
+# ───── secrets (wrangler secret put) ─────
+# wrangler secret put ANALYTICS_READ_TOKEN
+#   (a strong opaque token — generate via `openssl rand -hex 32`)
+#   Ops uses this to query the summary endpoint:
+#     curl -H "Authorization: Bearer <TOKEN>" \
+#       https://install-analytics-summary.<your-subdomain>.workers.dev/summary?since_hours=24
+
+# ───── KV binding ─────
+# MUST match the namespace bound to the redirect Worker. The redirect
+# Worker WRITES; this Worker READS. Same KV namespace.
+[[kv_namespaces]]
+binding = "ANALYTICS"
+# id = "<UUID from `wrangler kv:namespace create install_analytics`>"
+# preview_id = "<UUID from `wrangler kv:namespace create install_analytics --preview`>"
