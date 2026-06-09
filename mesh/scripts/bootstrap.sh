@@ -31,12 +31,40 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx certbot python3-cert
 
 log "2/8  drop the privacy log-format snippet into nginx http context"
 install -d -m 0755 "$NGINX_SNIPPETS"
+# Backup the existing snippet (if any) so we can revert atomically on
+# nginx -t failure — protects against the v0.2.0 incident where a
+# duplicate-gzip in the snippet broke the test and Nginx silently fell
+# back to default Ubuntu welcome on every Host header.
+SNIPPET_BACKUP=""
+if [ -f "$NGINX_SNIPPETS/gammaqc-mesh.conf" ]; then
+    SNIPPET_BACKUP="$(mktemp)"
+    cp "$NGINX_SNIPPETS/gammaqc-mesh.conf" "$SNIPPET_BACKUP"
+fi
 install -m 0644 "$MESH_ROOT/nginx/nginx.conf.snippet" "$NGINX_SNIPPETS/gammaqc-mesh.conf"
 # Ensure the snippet is included from the main config (idempotent)
 if ! grep -q "include $NGINX_SNIPPETS/gammaqc-mesh.conf" /etc/nginx/nginx.conf; then
     sed -i '/^http {$/a\    include '"$NGINX_SNIPPETS"'/gammaqc-mesh.conf;' /etc/nginx/nginx.conf
     log "  ↳ added include directive to /etc/nginx/nginx.conf"
 fi
+# Pre-validate immediately after touching the snippet so a bad config
+# doesn't propagate to step 6 (where a failed reload could degrade
+# any currently-running Nginx).
+if ! nginx -t 2>/dev/null; then
+    err "snippet caused nginx -t to fail — reverting and aborting bootstrap"
+    nginx -t 2>&1 | sed 's/^/    /' >&2
+    if [ -n "$SNIPPET_BACKUP" ]; then
+        cp "$SNIPPET_BACKUP" "$NGINX_SNIPPETS/gammaqc-mesh.conf"
+        log "  ↳ snippet reverted from backup"
+    else
+        rm -f "$NGINX_SNIPPETS/gammaqc-mesh.conf"
+        # Also remove the include line we may have just added
+        sed -i "\|include $NGINX_SNIPPETS/gammaqc-mesh.conf|d" /etc/nginx/nginx.conf
+        log "  ↳ snippet and include line removed (no prior backup to restore)"
+    fi
+    err "fix the snippet at $MESH_ROOT/nginx/nginx.conf.snippet and re-run bootstrap"
+    exit 1
+fi
+[ -n "$SNIPPET_BACKUP" ] && rm -f "$SNIPPET_BACKUP"
 
 log "3/8  create web root + certbot webroot"
 install -d -m 0755 "$WEB_ROOT"
