@@ -20,15 +20,17 @@ WEB_ROOT="/var/www/gammaqc-mesh"
 SITES_AVAIL="/etc/nginx/sites-available"
 SITES_ENAB="/etc/nginx/sites-enabled"
 
-TEMPLATE_NGINX="$MESH_ROOT/nginx/gammaqc-mesh.conf"
+TEMPLATE_NGINX_FULL="$MESH_ROOT/nginx/gammaqc-mesh.conf"
+TEMPLATE_NGINX_HTTP="$MESH_ROOT/nginx/gammaqc-mesh-http.conf"
 TEMPLATE_LANDING="$MESH_ROOT/landing/index.html"
 INSTALL_SCRIPT="$MESH_ROOT/landing/install"
 DOMAINS_FILE="$MESH_ROOT/nginx/domains.list"
 
-[ -f "$TEMPLATE_NGINX" ]   || { echo "missing $TEMPLATE_NGINX"; exit 1; }
-[ -f "$TEMPLATE_LANDING" ] || { echo "missing $TEMPLATE_LANDING"; exit 1; }
-[ -f "$INSTALL_SCRIPT" ]   || { echo "missing $INSTALL_SCRIPT"; exit 1; }
-[ -f "$DOMAINS_FILE" ]     || { echo "missing $DOMAINS_FILE"; exit 1; }
+[ -f "$TEMPLATE_NGINX_FULL" ] || { echo "missing $TEMPLATE_NGINX_FULL"; exit 1; }
+[ -f "$TEMPLATE_NGINX_HTTP" ] || { echo "missing $TEMPLATE_NGINX_HTTP"; exit 1; }
+[ -f "$TEMPLATE_LANDING" ]    || { echo "missing $TEMPLATE_LANDING"; exit 1; }
+[ -f "$INSTALL_SCRIPT" ]      || { echo "missing $INSTALL_SCRIPT"; exit 1; }
+[ -f "$DOMAINS_FILE" ]        || { echo "missing $DOMAINS_FILE"; exit 1; }
 
 # Resolve published gammaqc-terminal version (for the SBOM). Fall back to
 # 'unknown' if PyPI is unreachable — never fail the render on network glitch.
@@ -46,9 +48,25 @@ while IFS=$'\t' read -r domain niche_hook; do
     domain="${domain// /}"
     niche_hook="${niche_hook## }"
 
-    # 1. nginx server block — template expansion via envsubst-style sed
-    sed -e "s|{{DOMAIN}}|${domain}|g" \
-        "$TEMPLATE_NGINX" > "$SITES_AVAIL/${domain}.conf"
+    # 1. nginx server block — pick template based on cert existence.
+    #
+    # PRE-CERT path: Let's Encrypt hasn't issued yet → render HTTP-only
+    # template so Nginx loads cleanly (the full template's HTTPS section
+    # references a fullchain.pem that doesn't exist yet, which makes
+    # `nginx -t` fail with BIO_new_file SSL error).
+    #
+    # POST-CERT path: cert exists → render the full template (HTTP→HTTPS
+    # redirect + HTTPS server block + HSTS).
+    #
+    # certbot-bulk.sh re-runs this script after each successful cert
+    # issuance, so domains transition pre-cert → post-cert one at a time.
+    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+        sed -e "s|{{DOMAIN}}|${domain}|g" \
+            "$TEMPLATE_NGINX_FULL" > "$SITES_AVAIL/${domain}.conf"
+    else
+        sed -e "s|{{DOMAIN}}|${domain}|g" \
+            "$TEMPLATE_NGINX_HTTP" > "$SITES_AVAIL/${domain}.conf"
+    fi
     ln -sf "$SITES_AVAIL/${domain}.conf" "$SITES_ENAB/${domain}.conf"
 
     # 2. landing page

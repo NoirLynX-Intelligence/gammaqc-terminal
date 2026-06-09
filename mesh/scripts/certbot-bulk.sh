@@ -64,15 +64,31 @@ while [ $i -lt ${#needs_cert[@]} ]; do
         fi
 
         echo "  certbot ${d}"
-        certbot certonly --webroot \
+        if certbot certonly --webroot \
             -w "$CERTBOT_WEBROOT" \
             -d "$d" \
             --non-interactive \
             --agree-tos \
             --email "$ACME_EMAIL" \
             --no-eff-email \
-            --keep-until-expiring \
-            || echo "  ! ${d}: certbot failed (rate limit? DNS?); continuing"
+            --keep-until-expiring; then
+            # Cert issued — flip this domain's nginx config from
+            # pre-cert (HTTP-only) to post-cert (HTTP→HTTPS + HTTPS)
+            # by re-running render-configs (which now sees the cert
+            # file and chooses the full template).
+            echo "  ✓ ${d}: cert issued; re-rendering nginx with HTTPS block"
+            bash "$MESH_ROOT/scripts/render-configs.sh" >/dev/null
+            # Validate config before reload — never break a working
+            # mesh because one domain's template render had an issue.
+            if nginx -t 2>/dev/null; then
+                systemctl reload nginx
+            else
+                echo "  ! ${d}: nginx -t failed after re-render; not reloading"
+                nginx -t 2>&1 | sed 's/^/      /'
+            fi
+        else
+            echo "  ! ${d}: certbot failed (rate limit? DNS?); continuing"
+        fi
     done
 
     # If there's another batch coming, sleep 60s between batches to be
