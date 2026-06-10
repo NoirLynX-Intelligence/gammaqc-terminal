@@ -39,7 +39,32 @@ h1{font-size:34px;font-weight:600;letter-spacing:-0.01em;color:#F5F5F0;margin-bo
 .sub{font-size:14px;color:rgba(245,245,240,0.62);margin-bottom:28px;max-width:580px}
 .sub em{color:rgba(201,162,39,0.7);font-style:normal;font-weight:500}
 
-/* ─── INSTALL HERO — primary CTA, the action that actually does something ─── */
+/* ─── PRIMARY CTAs — Sign up + Log in for retail web users ─── */
+.cta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.cta{display:flex;flex-direction:column;padding:18px 20px;border-radius:2px;text-decoration:none;transition:transform .12s,background .15s,border-color .15s}
+.cta:hover{transform:translateY(-1px)}
+.cta-label{font-size:10px;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:8px;font-weight:500}
+.cta-title{font-size:17px;font-weight:600;margin-bottom:4px;letter-spacing:-0.005em}
+.cta-sub{font-size:12px;line-height:1.4}
+.cta-primary{background:#C9A227;color:#0A0A0B;border:1px solid #C9A227}
+.cta-primary:hover{background:#E0B82F;border-color:#E0B82F}
+.cta-primary .cta-label{color:rgba(10,10,11,0.7)}
+.cta-primary .cta-sub{color:rgba(10,10,11,0.7)}
+.cta-secondary{background:transparent;color:#F5F5F0;border:1px solid rgba(201,162,39,0.35)}
+.cta-secondary:hover{background:rgba(201,162,39,0.08);border-color:rgba(201,162,39,0.6)}
+.cta-secondary .cta-label{color:#C9A227}
+.cta-secondary .cta-sub{color:rgba(245,245,240,0.55)}
+
+/* ─── CLI disclosure — collapsed by default, expands on click ─── */
+.cli-details{margin-bottom:24px;border:1px solid rgba(201,162,39,0.12);border-radius:2px;background:rgba(10,10,11,0.4)}
+.cli-details summary{cursor:pointer;padding:14px 18px;list-style:none;font-size:12px;color:rgba(245,245,240,0.55);letter-spacing:0.04em;transition:color .15s;display:flex;align-items:center;gap:8px}
+.cli-details summary::-webkit-details-marker{display:none}
+.cli-details summary:hover{color:#C9A227}
+.cli-summary-label{color:#C9A227;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;font-weight:500;border:1px solid rgba(201,162,39,0.3);padding:2px 8px;border-radius:2px}
+.cli-details[open] summary{border-bottom:1px solid rgba(201,162,39,0.12)}
+.cli-details .install-hero{margin-bottom:0;border:none;background:transparent;padding:18px}
+
+/* ─── INSTALL HERO — secondary now ─── */
 .install-hero{background:#0A0A0B;border:1px solid rgba(201,162,39,0.35);border-radius:2px;padding:24px;margin-bottom:24px}
 .install-label{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#C9A227;margin-bottom:10px;font-weight:500}
 .install-cmd{display:flex;align-items:stretch;gap:0;font-family:inherit;font-size:15px;border:1px solid rgba(201,162,39,0.25);border-radius:2px;overflow:hidden;background:#0A0A0B}
@@ -79,6 +104,7 @@ h1{font-size:34px;font-weight:600;letter-spacing:-0.01em;color:#F5F5F0;margin-bo
   .gamma{font-size:48px}
   h1{font-size:24px}
   .row{grid-template-columns:90px 1fr}
+  .cta-grid{grid-template-columns:1fr}
   .install-cmd{flex-direction:column}
   .install-cmd code{font-size:13px;padding:12px}
   .copy-btn{padding:12px;width:100%}
@@ -97,14 +123,32 @@ h1{font-size:34px;font-weight:600;letter-spacing:-0.01em;color:#F5F5F0;margin-bo
     <p class="tagline">The DrkLynX Sovereign Finance Module</p>
     <p class="sub">Kim does the math. Warren talks to you. The Chemist seals it. The <em>resonance</em> you feel when your conviction meets the regime — that is the outcome. The platform is Gamma QC.</p>
 
-    <div class="install-hero">
-      <div class="install-label">Install the free terminal</div>
-      <div class="install-cmd">
-        <code id="installCmd"><span class="pip">pip install</span> gammaqc-terminal</code>
-        <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
-      </div>
-      <div class="install-hint">Then run <code style="color:#C9A227">gamma analyze NVDA</code> · Mac / Linux / Windows · Python 3.10+ · <a href="https://github.com/NoirLynX-Intelligence/gammaqc-terminal" target="_blank" rel="noopener">Source on GitHub</a></div>
+    <!-- ─── PRIMARY: web app for everyone (retail-friendly) ─── -->
+    <div class="cta-grid">
+      <a href="https://app.gammaqc.com/register" class="cta cta-primary">
+        <span class="cta-label">Free account</span>
+        <span class="cta-title">Sign up — no card</span>
+        <span class="cta-sub">Use Gamma QC in your browser. 60 seconds.</span>
+      </a>
+      <a href="https://app.gammaqc.com/login" class="cta cta-secondary">
+        <span class="cta-label">Returning</span>
+        <span class="cta-title">Log in</span>
+        <span class="cta-sub">Pick up where you left off.</span>
+      </a>
     </div>
+
+    <!-- ─── SECONDARY: CLI for power users ─── -->
+    <details class="cli-details">
+      <summary><span class="cli-summary-label">Power user?</span> Install the terminal instead →</summary>
+      <div class="install-hero">
+        <div class="install-label">Free terminal — same auth, scriptable</div>
+        <div class="install-cmd">
+          <code id="installCmd"><span class="pip">pip install</span> gammaqc-terminal</code>
+          <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
+        </div>
+        <div class="install-hint">Then run <code style="color:#C9A227">gamma analyze NVDA</code> · Mac / Linux / Windows · Python 3.10+ · <a href="https://github.com/NoirLynX-Intelligence/gammaqc-terminal" target="_blank" rel="noopener">Source on GitHub</a></div>
+      </div>
+    </details>
 
     <div class="stack">
       <div class="row"><b>Module</b><span>DrkLynX Gamma QC</span></div>
