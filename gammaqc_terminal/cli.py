@@ -405,5 +405,81 @@ def status() -> None:
     console.print(tbl)
 
 
+@app.command()
+def verify(
+    receipt_path: str = typer.Argument(..., help="Path to receipt JSON, or '-' for stdin"),
+    request_body: str = typer.Option(None, "--request-body", "-r",
+                                     help="Path to the original request JSON for inputs_hash verification"),
+    jwks_url: str = typer.Option(None, "--jwks-url",
+                                 help="Override the attestor JWKS URL (default: attest.gammaqc.com)"),
+    json_out: bool = typer.Option(False, "--json", help="Emit machine-readable JSON verdict"),
+) -> None:
+    """Verify a Sovereign Review Fabric audit_receipt OFFLINE.
+
+    Free-tier. No API key required. Public-key crypto: fetches the
+    attestor's JWKS once, verifies the Ed25519 signature locally. Pass
+    --request-body to ALSO verify that the receipt was issued for the
+    exact request you sent (cryptographic replay-proof).
+
+    Examples:
+      gamma verify receipt.json
+      gamma verify - < response.json
+      gamma verify receipt.json --request-body my_request.json
+      gamma verify receipt.json --json   # for piping to jq / CI
+    """
+    from .verify import verify_receipt, DEFAULT_JWKS_URL, _load_json
+    try:
+        receipt_doc = _load_json(receipt_path)
+    except FileNotFoundError as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(code=3)
+    except json.JSONDecodeError as e:
+        err_console.print(f"[red]✗[/] receipt is not valid JSON: {e}")
+        raise typer.Exit(code=3)
+
+    # Receipt may be either the bare audit_receipt block OR a full
+    # API response that contains it under "audit_receipt".
+    if isinstance(receipt_doc, dict) and "audit_receipt" in receipt_doc:
+        receipt = receipt_doc["audit_receipt"]
+    else:
+        receipt = receipt_doc
+
+    req_body = None
+    if request_body:
+        try:
+            req_body = _load_json(request_body)
+        except Exception as e:
+            err_console.print(f"[red]✗[/] could not load request body: {e}")
+            raise typer.Exit(code=3)
+
+    verdict = verify_receipt(
+        receipt=receipt,
+        original_request=req_body,
+        jwks_url=jwks_url or DEFAULT_JWKS_URL,
+    )
+
+    if json_out:
+        console.print_json(json.dumps(verdict))
+    else:
+        color = "green" if verdict["valid"] else "red"
+        marker = "✓ VALID" if verdict["valid"] else "✗ INVALID"
+        console.print(Panel(
+            f"[bold {color}]{marker}[/]\n\n" + "\n".join(verdict["reasons"]),
+            title="Sovereign Review Fabric — Receipt Verification",
+            border_style=color,
+        ))
+
+    # Exit codes: 0 valid, 1 invalid, 2 unverifiable (no sig + degraded)
+    if verdict["valid"]:
+        # If all signature checks were None/skipped (no attestor + no req-body),
+        # it's "unverifiable" not "valid"
+        sig_present = verdict["checks"].get("attestor:signature_present")
+        inputs_check = verdict["checks"].get("inputs_hash:matches_request")
+        if sig_present is False and inputs_check is None:
+            raise typer.Exit(code=2)
+        raise typer.Exit(code=0)
+    raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":   # pragma: no cover
     app()

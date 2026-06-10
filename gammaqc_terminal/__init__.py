@@ -9,6 +9,8 @@ Bound to the GammaQC sovereign backend at api.gammaqc.com when
 authenticated via `gamma login --api-key`.
 """
 
-__version__ = "0.2.0"
-__phase__ = "terminal-v0.2"   # parallel to ora-v2.2 on the backend
-                              # v0.2 wires gamma shock --hedge to /api/oracle/shock/hedge
+__version__ = "0.3.0"
+__phase__ = "terminal-v0.3"   # parallel to ora-v2.5 / SRF-Wave-2 on backend
+                              # v0.3 adds `gamma verify` — offline Sovereign
+                              # Review Fabric receipt verifier (Ed25519 + JWKS).
+                              # Free-tier, public-key crypto, no API key needed.
