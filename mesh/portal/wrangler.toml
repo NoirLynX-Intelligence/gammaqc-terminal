@@ -1,0 +1,32 @@
+# gammaqc-portal — brand-correct landing for www.gammaqc.com
+#
+# Deploys to a new Worker (gammaqc-portal). Commander binds it to
+# gammaqc.com root via dashboard Routes:
+#     gammaqc.com/*       → gammaqc-portal
+#     www.gammaqc.com/*   → gammaqc-portal
+# (or via [routes] below once we're confident the old Pages deploy can
+# be retired)
+#
+# Why a new Worker instead of editing the old deploy: the old source
+# is not in any local repo — only in an old session transcript. Standing
+# up a fresh Worker is faster than archaeology + de-risks parallel
+# operation (we can A/B verify the new landing before flipping DNS).
+#
+# Deploy:
+#   cd mesh/portal && python3 build.py && wrangler deploy
+# Then in CF dashboard: Workers → Routes → add gammaqc.com/* → gammaqc-portal
+
+name = "gammaqc-portal"
+main = "dist/worker.js"
+compatibility_date = "2026-06-10"
+workers_dev = true
+
+# Uncomment after dashboard A/B verification + ready to cut over from
+# the old Pages deploy:
+# [[routes]]
+# pattern = "gammaqc.com/*"
+# zone_name = "gammaqc.com"
+#
+# [[routes]]
+# pattern = "www.gammaqc.com/*"
+# zone_name = "gammaqc.com"

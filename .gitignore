@@ -42,3 +42,4 @@ cf-bulk-redirect.no-zone.txt
 cf-deploy-worker.failed.txt
 cf-deploy-worker.no-zone.txt
 cf-cleanup.failed.txt
+mesh/portal/dist/
