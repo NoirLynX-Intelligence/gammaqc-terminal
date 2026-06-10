@@ -11,10 +11,9 @@ compatibility_date = "2026-06-08"
 # the workers.dev subdomain enabled until the Custom Domain is bound.
 workers_dev = true
 
-# ───── Custom Domain (set up via CF API + dashboard once ready) ─────
-# routes = [
-#   { pattern = "attest.gammaqc.com/*", zone_name = "gammaqc.com" },
-# ]
+[[routes]]
+pattern = "attest.gammaqc.com"
+custom_domain = true
 
 # ───── Secrets (wrangler secret put) ─────
 # SRF_INTERNAL_KEY  — Bearer token for /sign (backend calls only)
