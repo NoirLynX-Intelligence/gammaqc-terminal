@@ -71,6 +71,138 @@ function json(obj, status = 200) {
   });
 }
 
+// ─── Skill manifest — JSON, fetch-cheap, signed when attestor is wired ───
+//
+// Discovery shape (intentionally narrow — easy for any LLM agent to parse):
+//   {
+//     "version": "0.3.0",
+//     "name": "gamma-qc",
+//     "content_url": "https://gammaqc.com/skill/raw",
+//     "content_sha256": "sha256:...",
+//     "content_bytes": 6064,
+//     "issued_at": "2026-...Z",
+//     "attestor": null | { "alg": "ed25519", "kid": "srf-...",
+//                          "signature": "..." }
+//   }
+//
+// content_sha256 lets a client cache by hash (skip re-fetch when unchanged).
+// When SRF_ATTESTOR_URL + SRF_INTERNAL_KEY are bound to this Worker we'll
+// POST the manifest core to the attestor and embed the Ed25519 signature
+// in the response. Until those bindings land, attestor is null + a
+// `degraded` field explains why — same honest-degraded pattern as the
+// backend srf_receipt service.
+//
+// Cache: 5 min — short enough to bump version quickly, long enough to
+// avoid hammering the attestor on every agent poll.
+
+async function sha256Hex(text) {
+  const enc = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Extract version + name from the SKILL.md YAML frontmatter. Defensive:
+// if the frontmatter parse fails for any reason, fall back to known-good
+// defaults so the manifest endpoint never 500s.
+function parseSkillFrontmatter(md) {
+  try {
+    const fm = md.match(/^---\n([\s\S]*?)\n---/);
+    if (!fm) return { name: "gamma-qc", version: "0.0.0" };
+    const lines = fm[1].split("\n");
+    const out = { name: "gamma-qc", version: "0.0.0" };
+    for (const line of lines) {
+      const m = line.match(/^(\w+):\s*(.+)$/);
+      if (m) out[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, "");
+    }
+    return out;
+  } catch {
+    return { name: "gamma-qc", version: "0.0.0" };
+  }
+}
+
+async function tryAttestorSign(env, receiptCore) {
+  // Best-effort — if attestor env not bound, return null with reason.
+  // Mirror the backend srf_receipt.attach_audit_receipt degraded pattern.
+  const url = (env && env.SRF_ATTESTOR_URL) || "";
+  const key = (env && env.SRF_INTERNAL_KEY) || "";
+  if (!url || !key) return { signed: null, reason: "attestor:unconfigured" };
+  try {
+    const r = await fetch(url.replace(/\/+$/, "") + "/sign", {
+      method: "POST",
+      headers: {
+        "authorization": "Bearer " + key,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(receiptCore),
+      // Aggressive timeout — never block the manifest on a slow attestor
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!r.ok) return { signed: null, reason: "attestor:http_" + r.status };
+    const data = await r.json();
+    if (!data.signature) return { signed: null, reason: "attestor:no_sig" };
+    return {
+      signed: {
+        alg: data.alg || "ed25519",
+        kid: (data.receipt && data.receipt.attestor && data.receipt.attestor.key_id) || null,
+        signature: data.signature,
+        signed_at: (data.receipt && data.receipt.attestor && data.receipt.attestor.signed_at) || null,
+      },
+      reason: null,
+    };
+  } catch (e) {
+    return { signed: null, reason: "attestor:exception_" + (e.name || "unknown") };
+  }
+}
+
+async function handleSkillManifest(request) {
+  const fm = parseSkillFrontmatter(SKILL_MD);
+  const contentHash = await sha256Hex(SKILL_MD);
+  const issuedAt = new Date().toISOString();
+
+  // Core fields that get signed — order-independent on the signer side
+  // (RFC8785 canonicalization happens at the attestor Worker).
+  const core = {
+    artifact_kind: "skill",
+    name: fm.name || "gamma-qc",
+    version: fm.version || "0.0.0",
+    content_url: "https://gammaqc.com/skill/raw",
+    content_sha256: "sha256:" + contentHash,
+    content_bytes: new TextEncoder().encode(SKILL_MD).length,
+    issued_at: issuedAt,
+  };
+
+  // env is injected via the Worker runtime — in modern Module Workers
+  // it's the 2nd arg of fetch(). Service-Worker style uses globalThis.
+  // Reach it defensively.
+  const env = (globalThis.__env) || {};
+  const { signed, reason } = await tryAttestorSign(env, core);
+
+  const manifest = {
+    ...core,
+    attestor: signed,
+    degraded: signed ? [] : [reason || "attestor:unknown"],
+    verifier_hint: signed
+      ? "Verify offline: re-compute sha256 over /skill/raw response body, " +
+        "compare to content_sha256. Then fetch JWKS at " +
+        "https://attest.gammaqc.com/.well-known/attestor.json and verify " +
+        "the Ed25519 signature against canonical(core fields)."
+      : "This manifest is unsigned — attestor was unavailable at issue " +
+        "time. Content hash still pins integrity. Re-fetch later for a " +
+        "signed copy.",
+  };
+
+  return new Response(JSON.stringify(manifest, null, 2), {
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      ...SECURITY_HEADERS,
+    },
+  });
+}
+
 // Skill landing page — gives the user a clear download CTA + an explanation
 // of what the file is and how to use it with any LLM agent.
 function renderSkillPage() {
@@ -149,7 +281,8 @@ async function passthrough(request) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    globalThis.__env = env;   // make env reachable from sub-functions
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -185,6 +318,15 @@ export default {
         },
       });
     }
+
+    // ─── Skill manifest — SRF-rail signed, dynamically discoverable ──
+    // The elevation Commander asked for: the skill is no longer a static
+    // markdown blob, it's a versioned + PQC-signable artifact on the same
+    // Sovereign Review Fabric attestation chain that signs Gamma QC
+    // analytical outputs. Agents can poll /skill/manifest.json to discover
+    // the latest version, fetch only when the hash changes, and verify
+    // the attestor signature offline before loading the content.
+    if (path === "/skill/manifest.json") return handleSkillManifest(request);
     // Diagnostic — confirms which Worker is serving (useful when tracking
     // down the OLD Pages deploy vs THIS Worker during cutover)
     if (path === "/.gamma/diag") {
