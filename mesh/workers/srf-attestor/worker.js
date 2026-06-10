@@ -46,20 +46,21 @@ function bytesToHex(bytes) {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function importPriv(privHex) {
+async function importPriv(privHex, pubHex) {
   // Ed25519 raw private key → JWK form for crypto.subtle.importKey.
-  // CF supports Ed25519 since 2023; use 'raw' for the public, 'jwk' for priv.
-  const raw = hexToBytes(privHex);
-  if (raw.length !== 32) throw new Error('priv-len-32');
-  // JWK form: d=priv (base64url), x=pub (base64url). For sign-only,
-  // we only need d; CF will compute x internally on import.
+  // CF Workers requires BOTH d (private) and x (public) populated in the
+  // JWK — it does NOT derive x from d. Pass both hex strings.
+  const rawPriv = hexToBytes(privHex);
+  const rawPub = hexToBytes(pubHex);
+  if (rawPriv.length !== 32) throw new Error('priv-len-32');
+  if (rawPub.length !== 32) throw new Error('pub-len-32');
   return crypto.subtle.importKey(
     'jwk',
     {
       kty: 'OKP',
       crv: 'Ed25519',
-      d: bytesToB64Url(raw),
-      x: '',   // CF derives if absent — fallback below if not supported
+      d: bytesToB64Url(rawPriv),
+      x: bytesToB64Url(rawPub),
     },
     { name: 'Ed25519' },
     false,
@@ -92,7 +93,7 @@ function canonicalize(obj) {
 }
 
 async function sign(env, receipt) {
-  const priv = await importPriv(env.SRF_PRIV_HEX);
+  const priv = await importPriv(env.SRF_PRIV_HEX, env.SRF_PUB_HEX);
   const msg = new TextEncoder().encode(canonicalize(receipt));
   const sigBuf = await crypto.subtle.sign({ name: 'Ed25519' }, priv, msg);
   return bytesToHex(new Uint8Array(sigBuf));
@@ -132,9 +133,22 @@ async function handleSign(request, env) {
   try { body = await request.json(); } catch { return jsonResp({ error: 'bad-json' }, 400); }
   if (!body || typeof body !== 'object') return jsonResp({ error: 'object-required' }, 400);
 
-  // Receipt MUST include these fields to be sign-eligible.
-  const required = ['artifact_id', 'artifact_kind', 'generated_at', 'commit_sha'];
-  for (const k of required) if (!(k in body)) return jsonResp({ error: `missing:${k}` }, 400);
+  // Receipt MUST include these to be sign-eligible. `artifact_kind` is the
+  // only TRULY-universal field across receipt types. `generated_at` /
+  // `issued_at` is required but accepted under either name (backend
+  // audit_receipts emit `generated_at`; skill manifests emit `issued_at`).
+  // `artifact_id` is preferred but not required — we synthesize one from
+  // (artifact_kind + content_sha256 || name + version) when absent so
+  // every signed receipt still has a stable identity.
+  if (!body.artifact_kind) return jsonResp({ error: 'missing:artifact_kind' }, 400);
+  if (!body.generated_at && !body.issued_at) {
+    return jsonResp({ error: 'missing:generated_at_or_issued_at' }, 400);
+  }
+  if (!body.artifact_id) {
+    // Synthesize a stable artifact_id so the signed receipt is identifiable
+    const seed = body.content_sha256 || (body.name + ':' + (body.version || '?'));
+    body = { ...body, artifact_id: `auto:${body.artifact_kind}:${seed}` };
+  }
 
   // Stamp the attestor metadata
   const receipt = {
