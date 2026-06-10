@@ -14,9 +14,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SRC_HTML = HERE / "index.html"
+SRC_SKILL = HERE / "skill" / "SKILL.md"
 SRC_WORKER = HERE / "worker.js"
 OUT_WORKER = HERE / "dist" / "worker.js"
-PLACEHOLDER = "INLINE_HTML"
+HTML_PLACEHOLDER = "INLINE_HTML"
+SKILL_PLACEHOLDER = "INLINE_SKILL"
 
 
 def escape_for_template_literal(s: str) -> str:
@@ -29,29 +31,32 @@ def escape_for_template_literal(s: str) -> str:
 
 
 def main() -> int:
-    if not SRC_HTML.is_file():
-        print(f"[FAIL] missing {SRC_HTML}", file=sys.stderr)
-        return 1
-    if not SRC_WORKER.is_file():
-        print(f"[FAIL] missing {SRC_WORKER}", file=sys.stderr)
-        return 1
+    for f in (SRC_HTML, SRC_SKILL, SRC_WORKER):
+        if not f.is_file():
+            print(f"[FAIL] missing {f}", file=sys.stderr)
+            return 1
 
     html = SRC_HTML.read_text(encoding="utf-8")
+    skill = SRC_SKILL.read_text(encoding="utf-8")
     worker = SRC_WORKER.read_text(encoding="utf-8")
 
-    if PLACEHOLDER not in worker:
-        print(f"[FAIL] {SRC_WORKER} has no {PLACEHOLDER} placeholder to fill", file=sys.stderr)
-        return 1
+    for placeholder in (HTML_PLACEHOLDER, SKILL_PLACEHOLDER):
+        if placeholder not in worker:
+            print(f"[FAIL] {SRC_WORKER} has no {placeholder} placeholder to fill", file=sys.stderr)
+            return 1
 
-    escaped = escape_for_template_literal(html)
-    literal = "`" + escaped + "`"
-    # Replace only the FIRST occurrence — defensive against accidental
-    # double-substitution if someone re-runs against an already-built file.
-    out = worker.replace(PLACEHOLDER, literal, 1)
+    # Defensive: replace only FIRST occurrence to avoid double-substitution
+    # if someone re-runs against an already-built file.
+    out = worker.replace(
+        HTML_PLACEHOLDER, "`" + escape_for_template_literal(html) + "`", 1,
+    ).replace(
+        SKILL_PLACEHOLDER, "`" + escape_for_template_literal(skill) + "`", 1,
+    )
 
     OUT_WORKER.parent.mkdir(parents=True, exist_ok=True)
     OUT_WORKER.write_text(out, encoding="utf-8")
-    print(f"[OK] built {OUT_WORKER} ({len(out):,} bytes)")
+    print(f"[OK] built {OUT_WORKER} ({len(out):,} bytes; "
+          f"html={len(html):,}B, skill={len(skill):,}B)")
     return 0
 
 
