@@ -21,12 +21,10 @@ main = "dist/worker.js"
 compatibility_date = "2026-06-10"
 workers_dev = true
 
-# Uncomment after dashboard A/B verification + ready to cut over from
-# the old Pages deploy:
-# [[routes]]
-# pattern = "gammaqc.com/*"
-# zone_name = "gammaqc.com"
-#
-# [[routes]]
-# pattern = "www.gammaqc.com/*"
-# zone_name = "gammaqc.com"
+[[routes]]
+pattern = "gammaqc.com/*"
+zone_name = "gammaqc.com"
+
+[[routes]]
+pattern = "www.gammaqc.com/*"
+zone_name = "gammaqc.com"

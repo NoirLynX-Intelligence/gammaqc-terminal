@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Gamma QC — DrkLynX Sovereign Quantitative Finance</title>
-<meta name="description" content="Gamma QC, by DrkLynX. Quantitative cryptography meets quality control. Sovereign signal generation, PQC-attested receipts, and a free terminal anyone can install. Where your conviction meets the regime.">
+<meta name="description" content="Gamma QC, by DrkLynX. Quantitative cryptography meets quality control. Free terminal, PQC-attested receipts, sovereign infrastructure. Install in 60 seconds.">
 <meta name="theme-color" content="#0A0A0B">
 
 <!-- PWA -->
@@ -16,13 +16,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="Gamma QC">
 
-<!-- Icon (inline SVG for crisp scaling in tab bar) -->
 <link rel="icon" href="/icons/gamma.svg" type="image/svg+xml">
 <link rel="icon" href="/icons/gamma-192.png" sizes="192x192" type="image/png">
 
-<!-- Open Graph (no Twitter card — Twitter is telemetry. OG is a w3c-ish meta surface.) -->
 <meta property="og:title" content="Gamma QC — DrkLynX Sovereign Quantitative Finance">
-<meta property="og:description" content="Quantitative cryptography meets quality control. Kim does the math. Warren talks to you. The Chemist seals it.">
+<meta property="og:description" content="Quantitative cryptography meets quality control. Free terminal, PQC-attested receipts. pip install gammaqc-terminal.">
 <meta property="og:image" content="https://gammaqc.com/icons/gamma-512.png">
 <meta property="og:url" content="https://gammaqc.com">
 <meta property="og:type" content="website">
@@ -30,130 +28,195 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:ui-monospace,'SF Mono','Menlo','Consolas',monospace;background:#0A0A0B;color:#F5F5F0;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden}
-.wrap{height:100vh;display:grid;place-items:center;padding:24px}
-.card{max-width:680px;width:100%;padding:48px 40px;border:1px solid rgba(201,162,39,0.18);background:#14130F;border-radius:2px;position:relative}
+body{font-family:ui-monospace,'SF Mono','Menlo','Consolas',monospace;background:#0A0A0B;color:#F5F5F0;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+.card{max-width:720px;width:100%;padding:48px 40px;border:1px solid rgba(201,162,39,0.18);background:#14130F;border-radius:2px;position:relative}
 .eyebrow{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#C9A227;margin-bottom:18px;font-weight:500;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .eyebrow .left{display:flex;align-items:center}
-.gamma{font-size:60px;line-height:1;color:#C9A227;font-weight:700;margin-bottom:18px;letter-spacing:-0.02em}
-h1{font-size:32px;font-weight:600;letter-spacing:-0.01em;color:#F5F5F0;margin-bottom:8px}
+.gamma{font-size:60px;line-height:1;color:#C9A227;font-weight:700;margin-bottom:14px;letter-spacing:-0.02em}
+h1{font-size:34px;font-weight:600;letter-spacing:-0.01em;color:#F5F5F0;margin-bottom:6px}
 .tagline{font-size:13px;color:#C9A227;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:18px;font-weight:500}
-.sub{font-size:14px;color:rgba(245,245,240,0.62);margin-bottom:32px;max-width:520px}
+.sub{font-size:14px;color:rgba(245,245,240,0.62);margin-bottom:28px;max-width:580px}
 .sub em{color:rgba(201,162,39,0.7);font-style:normal;font-weight:500}
+
+/* ─── INSTALL HERO — primary CTA, the action that actually does something ─── */
+.install-hero{background:#0A0A0B;border:1px solid rgba(201,162,39,0.35);border-radius:2px;padding:24px;margin-bottom:24px}
+.install-label{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#C9A227;margin-bottom:10px;font-weight:500}
+.install-cmd{display:flex;align-items:stretch;gap:0;font-family:inherit;font-size:15px;border:1px solid rgba(201,162,39,0.25);border-radius:2px;overflow:hidden;background:#0A0A0B}
+.install-cmd code{flex:1;padding:14px 16px;color:#F5F5F0;background:transparent;font-family:inherit;font-size:15px;user-select:all;-webkit-user-select:all;letter-spacing:0.02em}
+.install-cmd code .pip{color:#C9A227}
+.copy-btn{background:#C9A227;color:#0A0A0B;border:0;padding:0 20px;font:inherit;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.copy-btn:hover{background:#E0B82F}
+.copy-btn.copied{background:#1A1A1A;color:#C9A227;border:1px solid rgba(201,162,39,0.4)}
+.install-hint{margin-top:10px;font-size:11px;color:rgba(245,245,240,0.45);letter-spacing:0.04em}
+.install-hint a{color:rgba(201,162,39,0.7);text-decoration:none;border-bottom:1px solid rgba(201,162,39,0.25)}
+.install-hint a:hover{color:#C9A227}
+
+/* ─── Module spec table — secondary info, not the headline ─── */
 .stack{display:flex;flex-direction:column;gap:10px;padding:18px;background:#0A0A0B;border:1px solid rgba(201,162,39,0.08);border-radius:2px;margin-bottom:24px}
-.row{display:grid;grid-template-columns:120px 1fr;font-size:12px;color:rgba(245,245,240,0.55)}
+.row{display:grid;grid-template-columns:130px 1fr;font-size:12px;color:rgba(245,245,240,0.55)}
 .row b{color:#C9A227;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;font-size:11px}
 .row span{color:rgba(245,245,240,0.85)}
+.row a{color:rgba(201,162,39,0.8);text-decoration:none;border-bottom:1px dotted rgba(201,162,39,0.4)}
+.row a:hover{color:#C9A227;border-bottom-style:solid}
+
 .foot{margin-top:22px;padding-top:18px;border-top:1px solid rgba(201,162,39,0.08);font-size:10px;color:rgba(245,245,240,0.35);letter-spacing:0.06em;text-transform:uppercase}
 .foot a{color:rgba(201,162,39,0.65);text-decoration:none;border-bottom:1px solid rgba(201,162,39,0.18)}
 .foot a:hover{color:#C9A227;border-bottom-color:#C9A227}
 .pulse{display:inline-block;width:6px;height:6px;background:#C9A227;border-radius:50%;margin-right:8px;vertical-align:middle;animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
 
-/* PWA install affordance — gold-bordered chip aligned with eyebrow */
-.install{display:none;background:transparent;color:#C9A227;border:1px solid rgba(201,162,39,0.4);font:inherit;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;padding:6px 12px;cursor:pointer;border-radius:2px;transition:background .2s,color .2s}
-.install:hover{background:#C9A227;color:#0A0A0B}
-.install.show{display:inline-block}
+/* PWA install affordance — DEMOTED to eyebrow chip; it's secondary now */
+.install-pwa{display:none;background:transparent;color:rgba(201,162,39,0.7);border:1px solid rgba(201,162,39,0.3);font:inherit;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;padding:5px 10px;cursor:pointer;border-radius:2px;transition:background .2s,color .2s}
+.install-pwa:hover{background:rgba(201,162,39,0.15);color:#C9A227}
+.install-pwa.show{display:inline-block}
 
-/* "Installed / running as PWA" indicator */
-.scrub{margin-top:10px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,245,240,0.35)}
-.scrub.flash{color:#C9A227;animation:flash 1.6s ease-out}
-@keyframes flash{0%{opacity:0}20%{opacity:1}100%{opacity:0.4}}
+.scrub{margin-top:10px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,245,240,0.35);min-height:14px}
+.scrub.flash{color:#C9A227}
 
-@media (max-width:540px){.card{padding:32px 24px}.gamma{font-size:48px}h1{font-size:24px}.row{grid-template-columns:90px 1fr}}
-
-/* When running as a standalone PWA, swap the eyebrow label */
-@media (display-mode:standalone),(display-mode:window-controls-overlay){.eyebrow .left::before{content:""}.pwa-only{display:inline-block}}
-.pwa-only{display:none}
+@media (max-width:540px){
+  .card{padding:32px 22px}
+  .gamma{font-size:48px}
+  h1{font-size:24px}
+  .row{grid-template-columns:90px 1fr}
+  .install-cmd{flex-direction:column}
+  .install-cmd code{font-size:13px;padding:12px}
+  .copy-btn{padding:12px;width:100%}
+}
 </style>
 </head>
 <body>
 <main class="wrap">
   <article class="card">
     <div class="eyebrow">
-      <span class="left"><span class="pulse"></span>Module-Γ · Quantitative Cryptography · Quality Control<span class="pwa-only"> · Portal Mode</span></span>
-      <button type="button" class="install" id="installBtn" aria-label="Install Gamma QC as a desktop app">Install Portal</button>
+      <span class="left"><span class="pulse"></span>Module-Γ · Quantitative Cryptography · Quality Control</span>
+      <button type="button" class="install-pwa" id="installBtn" aria-label="Pin Gamma QC to home screen">Pin to home</button>
     </div>
     <div class="gamma">Γ</div>
     <h1>Gamma QC</h1>
     <p class="tagline">The DrkLynX Sovereign Finance Module</p>
     <p class="sub">Kim does the math. Warren talks to you. The Chemist seals it. The <em>resonance</em> you feel when your conviction meets the regime — that is the outcome. The platform is Gamma QC.</p>
+
+    <div class="install-hero">
+      <div class="install-label">Install the free terminal</div>
+      <div class="install-cmd">
+        <code id="installCmd"><span class="pip">pip install</span> gammaqc-terminal</code>
+        <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
+      </div>
+      <div class="install-hint">Then run <code style="color:#C9A227">gamma analyze NVDA</code> · Mac / Linux / Windows · Python 3.10+ · <a href="https://github.com/NoirLynX-Intelligence/gammaqc-terminal" target="_blank" rel="noopener">Source on GitHub</a></div>
+    </div>
+
     <div class="stack">
       <div class="row"><b>Module</b><span>DrkLynX Gamma QC</span></div>
       <div class="row"><b>Engine</b><span>CEIM · "Kim"</span></div>
       <div class="row"><b>Voice</b><span>Warren</span></div>
       <div class="row"><b>Deep mode</b><span>CEIMICE · "Chemist"</span></div>
       <div class="row"><b>Substrate</b><span>7-witness Byzantine quorum · ML-DSA-65 ready</span></div>
-      <div class="row"><b>Terminal</b><span><code style="color:#C9A227">pip install gammaqc-terminal</code></span></div>
-      <div class="row"><b>Status</b><span style="color:#C9A227">Coming online</span></div>
+      <div class="row"><b>Pro tier</b><span><a href="/pro">Algorithmic hedge · PQC-sealed compliance receipts →</a></span></div>
+      <div class="row"><b>Verify</b><span><code style="color:#C9A227">gamma verify &lt; receipt.json</code></span></div>
+      <div class="row"><b>Status</b><span style="color:#C9A227">Online — accepting installs</span></div>
     </div>
-    <div class="foot">A <a href="https://drklynx.com">DrkLynX</a> product · Hosted on DrkLynX Sovereign Infrastructure · Registered via DrkLynX Domains</div>
+
+    <div class="foot">A <a href="https://drklynx.com">DrkLynX</a> product · Sovereign infrastructure · PQC-ready</div>
     <div class="scrub" id="scrubIndicator" aria-live="polite"></div>
   </article>
 </main>
 
 <script>
 /* =============================================================================
- * Gamma QC — DrkLynX Portal — installer + forensic scrub trigger
- * -----------------------------------------------------------------------------
- * Three jobs:
- *   1. Register the service worker (silent — failures don't break the page).
- *   2. Capture beforeinstallprompt, show "Install Portal" chip, drive native UX.
- *   3. On visibility-hidden, ask the SW to scrub local state (debounced so a
- *      brief tab switch doesn't wipe a working session).
- * No analytics. No third-party JS. No remote endpoints touched.
+ * Gamma QC landing — install copy + PWA install (secondary)
+ * =============================================================================
+ * Primary action: copy `pip install gammaqc-terminal` to clipboard.
+ * Secondary: pin-to-home PWA install when the browser supports it.
+ * No analytics. No third-party JS. No remote endpoints.
  * ============================================================================= */
 
-// 1. Service worker — best-effort, never blocks the page
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {/* silent */});
+const scrub = document.getElementById('scrubIndicator');
+function announce(msg, flash) {
+  if (!scrub) return;
+  scrub.textContent = msg;
+  scrub.classList.toggle('flash', !!flash);
+}
+
+// 1. PRIMARY: copy-to-clipboard for the install command
+const copyBtn = document.getElementById('copyBtn');
+const installCmd = document.getElementById('installCmd');
+const INSTALL_TEXT = 'pip install gammaqc-terminal';
+
+if (copyBtn) {
+  copyBtn.addEventListener('click', async () => {
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(INSTALL_TEXT);
+        ok = true;
+      }
+    } catch (e) { /* fall through */ }
+    if (!ok) {
+      // Fallback: select the code element so user can ctrl-c
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(installCmd);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('copy');
+        ok = true;
+      } catch (e) { /* nothing */ }
+    }
+    if (ok) {
+      copyBtn.textContent = 'Copied';
+      copyBtn.classList.add('copied');
+      announce('Install command copied. Paste into your terminal.', true);
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy';
+        copyBtn.classList.remove('copied');
+      }, 2500);
+    } else {
+      announce('Could not copy — select the command manually.', false);
+    }
   });
 }
 
-// 2. PWA install chip
+// 2. SECONDARY: PWA install chip — only relevant on browsers that surface beforeinstallprompt
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* silent */ });
+  });
+}
+
 let deferredPrompt = null;
-const btn = document.getElementById('installBtn');
+const pwaBtn = document.getElementById('installBtn');
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  if (btn) btn.classList.add('show');
+  if (pwaBtn) pwaBtn.classList.add('show');
 });
-if (btn) {
-  btn.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    btn.classList.remove('show');
+if (pwaBtn) {
+  pwaBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) {
+      announce('Your browser does not support pin-to-home. Use the install command above.', false);
+      return;
+    }
+    pwaBtn.classList.remove('show');
     deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
+    const choice = await deferredPrompt.userChoice;
     deferredPrompt = null;
+    if (choice && choice.outcome === 'accepted') {
+      announce('Pinned. The real product is the terminal — copy the install command above.', true);
+    }
   });
 }
 window.addEventListener('appinstalled', () => {
-  if (btn) btn.classList.remove('show');
-  const s = document.getElementById('scrubIndicator');
-  if (s) { s.textContent = 'Portal installed.'; s.classList.add('flash'); }
+  if (pwaBtn) pwaBtn.classList.remove('show');
+  announce('Pinned. The real product is the terminal — copy the install command above.', true);
 });
 
-// 3. Visibility-driven scrub (debounced 60s)
-let scrubTimer = null;
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    scrubTimer = setTimeout(() => {
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({type: 'scrub'});
-      }
-    }, 60000);
-  } else if (scrubTimer) {
-    clearTimeout(scrubTimer);
-    scrubTimer = null;
-  }
-});
-
-// PWA mode indicator on load
+// On first paint, if running as PWA, surface that this page is a doorway,
+// not the product itself.
 window.addEventListener('DOMContentLoaded', () => {
   if (window.matchMedia('(display-mode: standalone)').matches) {
-    const s = document.getElementById('scrubIndicator');
-    if (s) s.textContent = 'Portal installed.';
+    announce('Pinned. The actual product is the gamma terminal — copy the install command above.', false);
   }
 });
 </script>
