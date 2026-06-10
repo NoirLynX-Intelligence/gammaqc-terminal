@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gammaqc-terminal"
-version = "0.3.0"
+version = "0.3.1"
 description = "Sovereign quantitative-finance terminal — local SEC scrape, Warren-Voice structural analysis, Portfolio Shock Matrix, Ghost-Watcher daemon. Free at the surface, PQC-sealed at the wall."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -82,7 +82,89 @@ def _print_locked_unlock_footer() -> None:
     console.print(msg)
 
 
+# ───────────────────────────── ORA: in-terminal concierge ─────────────────
+
+
+def _render_welcome() -> None:
+    """Friendly first-run / `gamma welcome` view. ORA in the terminal —
+    same host energy as the web app, no chat surface (yet), just clear
+    next-step guidance so finance users aren't dumped into a power-user
+    CLI without a map.
+
+    Commander feedback 2026-06-10: 'the terminal maybe too advanced for
+    the average person. they need a guide and instructions. they need
+    ORA. I don't even know how to navigate this.'
+    """
+    cfg = Config.load()
+    pro = cfg.api_key and cfg.pro_unlocked
+    g = Text()
+    g.append("\n  ", style="")
+    g.append("Γ", style="bold #C9A227")
+    g.append("  Gamma QC  ", style="bold")
+    g.append(f"v{__version__}", style="dim")
+    g.append("\n  ", style="")
+    g.append("ORA · Host · ", style="dim #C9A227")
+    g.append("DrkLynX Sovereign Finance Module", style="dim")
+    console.print(g)
+    tbl = Table(show_header=False, box=None, padding=(0, 2), expand=False)
+    tbl.add_column(style="bold #C9A227", justify="right", width=22)
+    tbl.add_column()
+    tbl.add_row("Try a ticker", "[bold cyan]gamma analyze NVDA[/]   "
+                                 "[dim](SEC filings + price + Warren-voice)[/]")
+    tbl.add_row("Raw scrape", "[bold cyan]gamma scrape AAPL --json[/]   "
+                                 "[dim](pipe into jq / your scripts)[/]")
+    tbl.add_row("Trader card", "[bold cyan]gamma card TSLA[/]   "
+                                 "[dim](ASCII card for screenshot / log)[/]")
+    tbl.add_row("Portfolio shock", "[bold cyan]gamma shock -p positions.csv "
+                                 "--event fed_hike[/]   [dim](free; --hedge needs Pro)[/]")
+    tbl.add_row("Verify a receipt", "[bold cyan]gamma verify receipt.json[/]   "
+                                 "[dim](offline, public-key crypto)[/]")
+    tbl.add_row("This guide again", "[bold cyan]gamma welcome[/]")
+    console.print(Panel(tbl, title="[bold]free tier — works right now[/]",
+                        border_style="dim", title_align="left"))
+    if not pro:
+        nudge = Text()
+        nudge.append("\n  Pro tier", style="bold #C9A227")
+        nudge.append("  unlocks the 10-seat Council, algorithmic hedges, "
+                     "PQC-sealed compliance receipts, and the Ghost-Watcher daemon.\n",
+                     style="dim")
+        nudge.append("  Free 7-day trial: ", style="dim")
+        nudge.append("https://app.gammaqc.com/subscribe", style="bold cyan")
+        nudge.append("\n  Already have a key: ", style="dim")
+        nudge.append("gamma login --api-key gqc_live_xxx", style="bold cyan")
+        console.print(nudge)
+    else:
+        signed = Text()
+        signed.append("\n  ✓ Pro authenticated", style="bold green")
+        signed.append(f"  ({cfg.api_key[:6]}…{cfg.api_key[-4:]})", style="dim")
+        console.print(signed)
+    console.print()
+
+
+def _maybe_first_run_banner() -> None:
+    """Print the welcome banner ONCE on first run (no config file on disk).
+    Subsequent invocations skip this — power users don't want greeted on
+    every command. Records the first-run flag in config so we don't
+    re-banner."""
+    cfg = Config.load()
+    if cfg.extra.get("first_run_seen"):
+        return
+    _render_welcome()
+    # Mark seen — best-effort, never fail the command if save fails
+    try:
+        cfg.extra["first_run_seen"] = True
+        cfg.save()
+    except Exception:
+        pass
+
+
 # ───────────────────────────── commands ───────────────────────────────
+
+@app.command()
+def welcome() -> None:
+    """Show the friendly Gamma QC onboarding guide. ORA in the terminal."""
+    _render_welcome()
+
 
 @app.command()
 def version() -> None:
@@ -99,6 +181,7 @@ def analyze(
 
     Example: [bold]gamma analyze NVDA[/]
     """
+    _maybe_first_run_banner()
     cfg = Config.load()
     with console.status(f"Scraping {ticker.upper()} (SEC + quote)…", spinner="dots"):
         scrape = scrape_ticker(ticker)
@@ -167,14 +250,20 @@ def card(
 
 @app.command()
 def shock(
-    portfolio: Path = typer.Option(..., "--portfolio", "-p",
-                                   help="Path to local holdings CSV",
-                                   exists=True, file_okay=True, dir_okay=False, readable=True),
-    event: str = typer.Option(..., "--event", "-e",
-                              help="Plain-text event description, e.g. 'Fed raises rates 50bps'"),
+    portfolio: Path = typer.Option(None, "--portfolio", "-p",
+                                   help="Path to local holdings CSV. Omit + use --sample "
+                                        "for a built-in demo portfolio.",
+                                   file_okay=True, dir_okay=False, readable=True),
+    event: str = typer.Option("fed_hike", "--event", "-e",
+                              help="Event class: fed_hike | cpi_hot | geopolitical. "
+                                   "Or plain-text description for advanced parsing."),
     hedge: bool = typer.Option(False, "--hedge", "-H",
                                help="Pro-tier: request Algorithmic Hedge Strategy "
                                     "for the bleeders (requires `gamma login --api-key`)"),
+    sample: bool = typer.Option(False, "--sample",
+                                 help="Use a built-in 5-position demo portfolio "
+                                      "(NVDA / AAPL / TLT / XLE / GLD) to try the command "
+                                      "without writing your own CSV."),
 ) -> None:
     """Portfolio Shock Matrix — local Blast Radius Report.
 
@@ -183,7 +272,43 @@ def shock(
 
     Example: [bold]gamma shock -p ./holdings.csv -e "Fed raises rates 50bps"[/]
     """
+    _maybe_first_run_banner()
     cfg = Config.load()
+    # ─── Helpful error path for the most common new-user mistake ──────────
+    # Both --portfolio and --sample missing → don't dump the user back into
+    # `Usage: gamma shock [OPTIONS]`. Show ORA's nudge with a one-line fix.
+    if portfolio is None and not sample:
+        err_console.print(
+            "\n[bold #C9A227]ORA · Host[/]\n"
+            "  [dim]You need to point shock at a portfolio CSV — or try the demo:[/]\n\n"
+            "    [bold cyan]gamma shock --sample[/]    "
+            "[dim]# 5-position built-in demo (NVDA / AAPL / TLT / XLE / GLD)[/]\n"
+            "    [bold cyan]gamma shock -p ./my.csv[/]  "
+            "[dim]# your own portfolio (columns: ticker, value)[/]\n"
+        )
+        raise typer.Exit(code=2)
+    if sample:
+        # Write a tiny demo CSV to the OS temp dir so the rest of the
+        # shock pipeline can read it like any user CSV. The CSV is wiped
+        # after the run so we don't leave demo data lying around the user's
+        # disk (privacy-first contract still holds).
+        import tempfile, csv as _csv
+        demo_rows = [
+            ("ticker", "value", "sector"),
+            ("NVDA", "50000", "long_duration_tech"),
+            ("AAPL", "30000", "growth_tech"),
+            ("TLT",  "20000", "long_duration_tech"),  # bonds proxy
+            ("XLE",  "15000", "energy"),
+            ("GLD",  "10000", "gold"),
+        ]
+        portfolio = Path(tempfile.gettempdir()) / "gammaqc_demo_portfolio.csv"
+        with portfolio.open("w", newline="", encoding="utf-8") as f:
+            w = _csv.writer(f)
+            w.writerows(demo_rows)
+        console.print(
+            "[dim]Using built-in demo portfolio "
+            "(NVDA 50k · AAPL 30k · TLT 20k · XLE 15k · GLD 10k).[/]"
+        )
     with console.status("Computing Blast Radius Report (local)…", spinner="dots"):
         report = run_shock(portfolio, event)
 

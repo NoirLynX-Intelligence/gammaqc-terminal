@@ -18,9 +18,14 @@ from typing import Any
 
 import httpx
 
-_SEC_UA = "gammaqc-terminal/0.1 (contact: ops@gammaqc.com)"
+_SEC_UA = "gammaqc-terminal/0.3 (contact: ops@gammaqc.com)"
 _SEC_BASE = "https://data.sec.gov"
-_YAHOO_QUOTE = "https://query1.finance.yahoo.com/v7/finance/quote"
+# v7/quote started requiring crumb+cookie auth in 2024 — unauthenticated
+# requests fail silently. v8/chart still serves unauthenticated and returns
+# price, volume, market_cap, day_range, and meta in one call. We pluck the
+# fields we need and shape them into the same dict the rest of the CLI
+# already expects so renderers don't change.
+_YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 # SEC asks for ≤10 req/s; we pace conservatively at ~5 req/s with sleeps
 # between calls. No need for async — a quote + filings call is 3 HTTPs.
 _REQ_SPACING_S = 0.2
@@ -76,16 +81,49 @@ def _recent_filings(client: httpx.Client, cik: str, limit: int = 5) -> list[dict
 
 
 def _quote(client: httpx.Client, ticker: str) -> dict[str, Any]:
-    """Yahoo quote endpoint — unauthenticated, no key required. Returns
-    raw dict on success, {} on failure. Caller surfaces gracefully."""
+    """Yahoo chart endpoint — unauthenticated, no crumb required (unlike
+    v7/quote which requires a session cookie + crumb since 2024). Returns
+    a dict shaped to match what the rest of the CLI expects so renderers
+    don't have to change. Returns {} on failure."""
     try:
-        r = client.get(_YAHOO_QUOTE, params={"symbols": ticker}, timeout=15)
+        url = _YAHOO_CHART.format(symbol=ticker.upper())
+        r = client.get(url, params={"interval": "1d", "range": "5d"}, timeout=15)
         if r.status_code != 200:
             return {}
         data = r.json()
-        results = data.get("quoteResponse", {}).get("result", [])
-        return results[0] if results else {}
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError):
+        chart = data.get("chart", {})
+        results = chart.get("result", [])
+        if not results:
+            return {}
+        result = results[0]
+        meta = result.get("meta", {}) or {}
+        indicators = (result.get("indicators", {}) or {}).get("quote", [{}])
+        q = indicators[0] if indicators else {}
+        # Last non-null close + volume from the most recent bar
+        closes = [c for c in (q.get("close") or []) if c is not None]
+        vols = [v for v in (q.get("volume") or []) if v is not None]
+        last_close = closes[-1] if closes else meta.get("regularMarketPrice")
+        last_vol = vols[-1] if vols else 0
+        prev_close = meta.get("chartPreviousClose") or (closes[-2] if len(closes) >= 2 else last_close)
+        change = (last_close - prev_close) if (last_close and prev_close) else 0
+        change_pct = (change / prev_close * 100) if prev_close else 0
+        # Shape into the dict the renderers/voice/card already expect
+        return {
+            "symbol": meta.get("symbol", ticker.upper()),
+            "shortName": meta.get("shortName") or meta.get("longName") or ticker.upper(),
+            "regularMarketPrice": last_close,
+            "regularMarketChange": change,
+            "regularMarketChangePercent": change_pct,
+            "regularMarketVolume": last_vol,
+            "regularMarketDayHigh": meta.get("regularMarketDayHigh"),
+            "regularMarketDayLow": meta.get("regularMarketDayLow"),
+            "fiftyTwoWeekHigh": meta.get("fiftyTwoWeekHigh"),
+            "fiftyTwoWeekLow": meta.get("fiftyTwoWeekLow"),
+            "marketCap": meta.get("marketCap"),
+            "currency": meta.get("currency", "USD"),
+            "exchange": meta.get("exchangeName") or meta.get("fullExchangeName"),
+        }
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError, TypeError):
         return {}
 
 
