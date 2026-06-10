@@ -16,7 +16,7 @@ SAMPLE_MESH_NODES=(
     "1333750.xyz" "1333900.xyz" "1333998.xyz"
 )
 PYPI_PACKAGE="gammaqc-terminal"
-PYPI_EXPECTED_VERSION="${PYPI_EXPECTED_VERSION:-0.2.0}"
+PYPI_EXPECTED_VERSION="${PYPI_EXPECTED_VERSION:-0.3.0}"
 TIMEOUT="${TIMEOUT:-10}"
 
 pass=0
@@ -120,11 +120,20 @@ fi
 section "DNS resolution (cross-check)"
 
 if command -v nslookup >/dev/null 2>&1; then
-    resolved="$(nslookup "$CANONICAL" 1.1.1.1 2>&1 | grep -E '^Address: [0-9]' | tail -1 | awk '{print $2}')"
+    # nslookup output format varies between Linux (single-space) and Windows
+    # (double-space after "Address:"). Use a relaxed regex + take any line
+    # that has both "Address" and a dotted IP, excluding the server-address
+    # line (which appears first). Belt-and-suspenders: also accept the
+    # `getent hosts` output if available.
+    resolved="$(nslookup "$CANONICAL" 1.1.1.1 2>&1 | \
+        awk '/^Address/ && /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ {print $NF}' | tail -1)"
+    if [ -z "$resolved" ] && command -v getent >/dev/null 2>&1; then
+        resolved="$(getent hosts "$CANONICAL" 2>/dev/null | awk '{print $1}' | head -1)"
+    fi
     if [ -n "$resolved" ]; then
-        ok "${CANONICAL} resolves via 1.1.1.1 to: ${resolved}"
+        ok "${CANONICAL} resolves to: ${resolved}"
     else
-        nope "${CANONICAL} does NOT resolve via 1.1.1.1"
+        nope "${CANONICAL} does NOT resolve via DNS"
     fi
 fi
 
