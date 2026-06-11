@@ -36,13 +36,24 @@ class TraderCard:
     witness_receipt: str | None = None              # PQC hash; None if locked
     issued_at: str = ""
     source: str = "local"                           # local | backend
+    # v0.3.2: free-tier council always shows 3 unlocked seats
+    free_council: list[Any] = None                  # type: ignore  # list[Tuple[str,str,str,int]]
 
 
-def _redacted_council() -> dict[str, str]:
-    """Visual placeholder for the locked 10-Seat split. ASCII-safe so
-    we don't crash on Windows cp1252 consoles. The text is suggestive
-    of what Pro unlocks without claiming any specific verdict."""
-    return {f"Seat {i:02d}": "[REDACTED — Pro tier]" for i in range(1, 11)}
+# Seven Pro-tier seats — names visible so free user sees what's behind the wall.
+# This is value preview, not vapor: each seat name describes a real institutional
+# signal Pro Warren computes via the backend (options flow, factor regression,
+# structural break, etc.). Free user sees "the wall isn't decorative — these are
+# real seats with real votes when you upgrade".
+_PRO_SEAT_NAMES = [
+    "Seat 04 · Options Flow",
+    "Seat 05 · Factor Regression",
+    "Seat 06 · Structural Break",
+    "Seat 07 · Earnings Drift",
+    "Seat 08 · Insider Cadence",
+    "Seat 09 · Cross-Asset Flow",
+    "Seat 10 · Q-LAM Synthesis",
+]
 
 
 def build_card_local(ticker: str, warren: WarrenAnalysis) -> TraderCard:
@@ -55,6 +66,7 @@ def build_card_local(ticker: str, warren: WarrenAnalysis) -> TraderCard:
         witness_receipt=None,
         issued_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         source="local",
+        free_council=warren.free_council or [],
     )
 
 
@@ -105,11 +117,30 @@ def render_card(card: TraderCard, *, locked: bool) -> Panel:
         bullets_block.append(b + "\n", style="white")
 
     council_tbl = Table(show_header=True, header_style="bold magenta", expand=True)
-    council_tbl.add_column("Seat", style="dim", width=10)
-    council_tbl.add_column("Vote", style="white")
-    council = card.council_split or (_redacted_council() if locked else {})
-    for seat, vote in council.items():
-        council_tbl.add_row(seat, vote)
+    council_tbl.add_column("Seat", style="dim", width=28)
+    council_tbl.add_column("Vote", style="bold", width=10)
+    council_tbl.add_column("Why", style="white")
+    if card.council_split:
+        # Pro/backend response — render all 10 seats with backend data
+        for seat, vote in card.council_split.items():
+            council_tbl.add_row(seat, vote, "")
+    elif locked:
+        # FREE TIER: show 3 unlocked seats with their REAL rule-based votes,
+        # then list the 7 locked seat NAMES (not anonymous redactions) so the
+        # user sees the wall isn't decorative.
+        vote_colors = {"BULLISH": "bold green", "BEARISH": "bold red", "NEUTRAL": "bold yellow"}
+        for seat_name, vote, why, conv in (card.free_council or []):
+            vote_text = Text(f"{vote}", style=vote_colors.get(vote, "white"))
+            vote_text.append(f" {conv}/10", style="dim")
+            why_text = Text(why, style="dim white")
+            council_tbl.add_row(seat_name, vote_text, why_text)
+        # 7 locked Pro seats — names visible so free user sees what's coming
+        for seat_name in _PRO_SEAT_NAMES:
+            council_tbl.add_row(
+                Text(seat_name, style="dim"),
+                Text("[Pro]", style="dim red"),
+                Text("unlocks with --api-key", style="dim italic"),
+            )
 
     receipt_line = Text()
     receipt_line.append("  Witness Receipt: ", style="bold dim")

@@ -107,6 +107,10 @@ def _quote(client: httpx.Client, ticker: str) -> dict[str, Any]:
         prev_close = meta.get("chartPreviousClose") or (closes[-2] if len(closes) >= 2 else last_close)
         change = (last_close - prev_close) if (last_close and prev_close) else 0
         change_pct = (change / prev_close * 100) if prev_close else 0
+        # 5-day average volume — Warren's flow signal needs a baseline to
+        # compare "today" against. Without this we can't say "volume is
+        # louder than narrative" with any real meaning.
+        avg_vol_5d = (sum(vols) / len(vols)) if vols else 0
         # Shape into the dict the renderers/voice/card already expect
         return {
             "symbol": meta.get("symbol", ticker.upper()),
@@ -122,6 +126,11 @@ def _quote(client: httpx.Client, ticker: str) -> dict[str, Any]:
             "marketCap": meta.get("marketCap"),
             "currency": meta.get("currency", "USD"),
             "exchange": meta.get("exchangeName") or meta.get("fullExchangeName"),
+            # NEW v0.3.2: actual history so voice + card can compute real signals
+            "closes_5d": closes,
+            "volumes_5d": vols,
+            "averageVolume5d": avg_vol_5d,
+            "previousClose": prev_close,
         }
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, ValueError, TypeError):
         return {}
