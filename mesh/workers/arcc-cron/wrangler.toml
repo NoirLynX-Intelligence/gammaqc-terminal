@@ -1,0 +1,28 @@
+# arcc-cron — ARCC Pre-Market Collision Matrix scheduler + failover.
+#
+# 4 cron triggers handle DST without a config change:
+#   Standard time (Nov-Mar): 13:25 / 13:35 UTC = 08:25 / 08:35 ET
+#   Daylight time (Mar-Nov): 12:25 / 12:35 UTC = 08:25 / 08:35 ET
+#
+# The backend idempotency check (arcc_cron_state.last_run.collision_date)
+# guarantees we only audit once per UTC date regardless of which trigger
+# fires first.
+
+name = "arcc-cron"
+main = "worker.js"
+compatibility_date = "2026-06-10"
+workers_dev = true
+
+[triggers]
+crons = [
+  "25 13 * * 1-5",   # 08:25 ET STD, weekdays (primary)
+  "35 13 * * 1-5",   # 08:35 ET STD, weekdays (watchdog)
+  "25 12 * * 1-5",   # 08:25 EDT (when on DST)
+  "35 12 * * 1-5",   # 08:35 EDT (when on DST)
+]
+
+[vars]
+BACKEND_BASE = "https://api.gammaqc.com"
+
+# Secrets (set via `wrangler secret put`):
+#   ARCC_CRON_TOKEN — Bearer token; must match backend env of same name
