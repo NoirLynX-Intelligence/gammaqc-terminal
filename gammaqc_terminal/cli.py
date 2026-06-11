@@ -606,5 +606,256 @@ def verify(
     raise typer.Exit(code=1)
 
 
+# ───────────────────────────── gamma thesis * ─────────────────────────
+#
+# ARCC v0.1 — Sealed Ledger surface. Each sub-command hits the same
+# /api/oracle endpoints the web app uses; same backend, same receipts,
+# same ARCC verdicts. Power-user shortcuts only — the full institutional
+# UX still lives on the web at /collision and /ledger.
+
+thesis_app = typer.Typer(
+    name="thesis",
+    help="Sealed Ledger — open / inspect / re-audit theses. Pro tier.",
+    no_args_is_help=True,
+)
+app.add_typer(thesis_app)
+
+
+@thesis_app.command("new")
+def thesis_new(
+    ticker: str = typer.Option(..., "--ticker", "-t", help="e.g. NVDA"),
+    side: str = typer.Option("long", "--side", "-s",
+                              help="long or short"),
+    entry: float = typer.Option(..., "--entry", "-e",
+                                  help="Entry / fill price"),
+    stop: float = typer.Option(..., "--stop",
+                                help="Stop price (below entry for long)"),
+    target: float = typer.Option(..., "--target",
+                                  help="Target price (above entry for long)"),
+    capital: float = typer.Option(0.0, "--capital", "-c",
+                                    help="Capital allocation USD (optional)"),
+    rationale: str = typer.Option(..., "--rationale", "-r",
+                                    help="Thesis text, ≥ 20 chars"),
+) -> None:
+    """Seal a new thesis. Runs the full 5-seat ARCC audit + PQC-seals
+    the immutable baseline. ~15-25s wall clock — be patient."""
+    from .thesis import mint_thesis
+    cfg = Config.load()
+    if not cfg.api_key:
+        err_console.print(_locked_msg())
+        raise typer.Exit(2)
+    with console.status(f"Sealing {ticker.upper()} via ARCC committee…", spinner="dots"):
+        try:
+            resp = mint_thesis(cfg, ticker=ticker, side=side,
+                                entry_price=entry, stop_price=stop,
+                                target_price=target,
+                                capital_allocation_usd=capital,
+                                rationale_text=rationale)
+        except (AuthError, RuntimeError) as e:
+            err_console.print(f"[red]✗[/] {e}")
+            raise typer.Exit(1)
+    _render_arcc_card(resp, ticker.upper(), side)
+
+
+@thesis_app.command("list")
+def thesis_list() -> None:
+    """List active sealed theses."""
+    from .thesis import list_active
+    cfg = Config.load()
+    if not cfg.api_key:
+        err_console.print(_locked_msg())
+        raise typer.Exit(2)
+    try:
+        theses = list_active(cfg)
+    except (AuthError, RuntimeError) as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(1)
+    if not theses:
+        console.print("[dim]No active theses. Seal one: gamma thesis new ...[/]")
+        return
+    tbl = Table(show_header=True, header_style="bold magenta", expand=True)
+    tbl.add_column("ID", style="dim", width=22)
+    tbl.add_column("Ticker", style="bold")
+    tbl.add_column("Side", style="dim")
+    tbl.add_column("Entry", justify="right")
+    tbl.add_column("Stop", justify="right", style="dim red")
+    tbl.add_column("Target", justify="right", style="dim green")
+    tbl.add_column("Verdict", style="bold yellow")
+    for t in theses:
+        verdict = (t.get("initial_arcc", {}).get("cro") or {}).get("overall_verdict", "—")
+        tbl.add_row(
+            t["thesis_id"], t["ticker"], t["side"],
+            f"${t['entry_price']:.2f}",
+            f"${t['stop_price']:.2f}",
+            f"${t['target_price']:.2f}",
+            verdict,
+        )
+    console.print(tbl)
+
+
+@thesis_app.command("show")
+def thesis_show(thesis_id: str = typer.Argument(...)) -> None:
+    """Render one thesis with full ARCC transcript + today's collision."""
+    from .thesis import get_thesis_detail
+    cfg = Config.load()
+    if not cfg.api_key:
+        err_console.print(_locked_msg())
+        raise typer.Exit(2)
+    try:
+        data = get_thesis_detail(cfg, thesis_id)
+    except RuntimeError as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(1)
+    t = data["thesis"]
+    _render_thesis_panel(t)
+    today_collision = data.get("today_collision")
+    if today_collision:
+        _render_collision_card(today_collision)
+
+
+@thesis_app.command("recheck")
+def thesis_recheck(thesis_id: str = typer.Argument(...)) -> None:
+    """Run on-demand ARCC re-audit against live data."""
+    from .thesis import recheck_thesis
+    cfg = Config.load()
+    if not cfg.api_key:
+        err_console.print(_locked_msg())
+        raise typer.Exit(2)
+    with console.status(f"Re-auditing {thesis_id}…", spinner="dots"):
+        try:
+            data = recheck_thesis(cfg, thesis_id)
+        except RuntimeError as e:
+            err_console.print(f"[red]✗[/] {e}")
+            raise typer.Exit(1)
+    tdi = data.get("tdi", {})
+    color = tdi.get("color", "unknown")
+    score = tdi.get("score", 0)
+    tone = {"red": "bold red", "yellow": "bold yellow",
+            "green": "bold green"}.get(color, "white")
+    console.print(f"\n  TDI: [{tone}]{score:.2f} ({color.upper()})[/]")
+    cro = (data.get("verdict") or {}).get("cro") or {}
+    if cro.get("binding_rationale"):
+        console.print(f"  [bold yellow]CRO:[/] {cro['binding_rationale']}\n")
+
+
+@app.command("collision")
+def collision_today_cmd() -> None:
+    """gamma collision — today's pre-market Collision Matrix."""
+    from .thesis import collision_today as collision_today_fn
+    cfg = Config.load()
+    if not cfg.api_key:
+        err_console.print(_locked_msg())
+        raise typer.Exit(2)
+    try:
+        data = collision_today_fn(cfg)
+    except RuntimeError as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(1)
+    matrix = data.get("matrix", [])
+    counts = data.get("counts", {})
+    console.print(f"\n[bold]ARCC PRE-MARKET COLLISION MATRIX[/] · {data.get('collision_date')}")
+    console.print(f"  [bold red]RED {counts.get('red', 0)}[/]  ·  "
+                  f"[bold yellow]YELLOW {counts.get('yellow', 0)}[/]  ·  "
+                  f"[bold green]GREEN {counts.get('green', 0)}[/]\n")
+    if not matrix:
+        console.print("[dim]No active theses. Open one: gamma thesis new ...[/]")
+        return
+    sorted_m = sorted(matrix, key=lambda c: {"red": 0, "yellow": 1,
+                                                "green": 2, "unknown": 3}.get(
+                                                    c.get("tdi_color"), 9))
+    for c in sorted_m:
+        _render_collision_card(c)
+
+
+# ─── Render helpers ────────────────────────────────────────────────────
+
+def _locked_msg() -> str:
+    return ("[red]✗ Pro tier required.[/]\n"
+            "  Get a key: https://gammaqc.com/subscribe\n"
+            "  Authenticate: gamma login --api-key <KEY>")
+
+
+def _render_arcc_card(resp: dict, ticker: str, side: str) -> None:
+    verdict = resp.get("verdict", {})
+    cro = verdict.get("cro") or {}
+    kelly = verdict.get("bounded_kelly", {})
+    seals = "SEALED" if not resp.get("pqc_degraded") else "UNSEALED (attestor unavailable)"
+    panel_text = Text()
+    panel_text.append(f"\n  {ticker} {side.upper()}  ·  ", style="bold")
+    panel_text.append(seals, style="bold green" if "SEALED" == seals else "dim yellow")
+    panel_text.append(f"\n  thesis_id: {resp.get('thesis_id')}\n", style="dim")
+    if cro.get("overall_verdict"):
+        panel_text.append(f"\n  [bold yellow]CRO VERDICT:[/] {cro['overall_verdict']}\n",
+                          style="white")
+    if cro.get("binding_rationale"):
+        panel_text.append(f"  {cro['binding_rationale']}\n", style="white")
+    if cro.get("asymmetry_warning"):
+        panel_text.append(f"\n  [yellow]Asymmetry: [/]{cro['asymmetry_warning']}\n",
+                          style="white")
+    panel_text.append(f"\n  Bounded Kelly: ", style="bold")
+    panel_text.append(f"{kelly.get('f_star_bounded_pct', 0):.2f}% NAV cap\n",
+                      style="bold cyan")
+    panel_text.append(f"  E(V): ", style="bold")
+    ev = verdict.get('expected_value', 0)
+    panel_text.append(f"{ev * 100:+.2f}%\n",
+                      style="green" if ev >= 0 else "red")
+    console.print(Panel(panel_text, title="ARCC INITIAL AUDIT", border_style="yellow"))
+
+    # Per-seat verdicts
+    tbl = Table(show_header=True, header_style="bold magenta", expand=True)
+    tbl.add_column("Seat", style="dim")
+    tbl.add_column("Grade", style="bold")
+    tbl.add_column("Verdict", style="bold")
+    tbl.add_column("Confidence", justify="right", style="dim")
+    for s in (verdict.get("seat_verdicts") or []):
+        if s.get("charter_id") == "cro_sovereign_invariant":
+            continue
+        out = s.get("output", {})
+        grade = "INST" if s.get("data_grade") == "institutional" else "MVP-PROXY"
+        grade_color = "bold green" if grade == "INST" else "bold yellow"
+        tbl.add_row(
+            s.get("display_name", "?"),
+            f"[{grade_color}]{grade}[/]",
+            out.get("verdict", "—"),
+            f"{out.get('confidence', '—')}/10",
+        )
+    console.print(tbl)
+
+
+def _render_thesis_panel(t: dict) -> None:
+    verdict = t.get("initial_arcc", {}).get("cro") or {}
+    kelly = t.get("initial_arcc", {}).get("bounded_kelly", {})
+    sealed = "PQC SEALED" if t.get("pqc_receipt") else "UNSEALED"
+    text = Text()
+    text.append(f"\n  {t['ticker']} {t['side'].upper()}  ·  ", style="bold")
+    text.append(sealed, style="bold green" if "SEALED" in sealed else "dim")
+    text.append(f"\n  Entry: ${t['entry_price']:.2f}  Stop: ${t['stop_price']:.2f}  "
+                f"Target: ${t['target_price']:.2f}\n", style="dim")
+    text.append(f"\n  Rationale: {t.get('rationale_text', '')[:300]}\n", style="white")
+    text.append(f"\n  CRO Verdict: ", style="bold")
+    text.append(f"{verdict.get('overall_verdict', '—')}\n", style="bold yellow")
+    text.append(f"  Bounded Kelly: {kelly.get('f_star_bounded_pct', 0):.2f}% NAV\n",
+                style="cyan")
+    console.print(Panel(text, title=f"THESIS · {t['thesis_id']}", border_style="cyan"))
+
+
+def _render_collision_card(c: dict) -> None:
+    color = c.get("tdi_color", "unknown")
+    tone = {"red": "red", "yellow": "yellow", "green": "green",
+            "unknown": "dim"}.get(color, "white")
+    score = c.get("tdi_score") or 0
+    text = Text()
+    text.append(f"\n  {c.get('ticker', '?')}  TDI ", style="bold")
+    text.append(f"{score:.2f}", style=f"bold {tone}")
+    text.append(f"  ({color.upper()})\n", style=f"bold {tone}")
+    cro = (c.get("verdict") or {}).get("cro") or {}
+    if cro.get("binding_rationale"):
+        text.append(f"\n  {cro['binding_rationale']}\n", style="white")
+    if cro.get("asymmetry_warning"):
+        text.append(f"\n  Asymmetry: {cro['asymmetry_warning']}\n", style="yellow")
+    title = f"COLLISION · {c.get('thesis_id', '?')}"
+    console.print(Panel(text, title=title, border_style=tone))
+
+
 if __name__ == "__main__":   # pragma: no cover
     app()

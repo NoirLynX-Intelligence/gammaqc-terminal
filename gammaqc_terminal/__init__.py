@@ -9,8 +9,13 @@ Bound to the GammaQC sovereign backend at api.gammaqc.com when
 authenticated via `gamma login --api-key`.
 """
 
-__version__ = "0.3.2"
-__phase__ = "terminal-v0.3.2"  # v0.3.2 (Commander: "still very meh"):
+__version__ = "0.4.0"
+__phase__ = "terminal-v0.4.0"  # v0.4.0 — Sealed Ledger + ARCC CLI surface:
+                               #  - gamma thesis new/list/show/recheck
+                               #  - gamma collision  (today's matrix)
+                               #  - hits same Pro endpoints as web app
+                               #  - Pro-tier gated; honest decline on free
+                               # carryover from v0.3.2 (Commander: "still very meh"):
                                #  - Free Warren rebuilt: decisive bias from
                                #    real signals, no more "UNKNOWN / 0%"
                                #  - 3 council seats now UNLOCKED in free tier
