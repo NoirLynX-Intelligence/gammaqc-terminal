@@ -71,8 +71,8 @@ the desktop notification popup that fires when condition hits]
 $ gamma analyze NVDA
 
 Pulls last 48hr of SEC filings + quote, prints a Swiss-Brutalist
-trader card with a structural read. The 10-Seat sovereign council
-split + PQC compliance receipt are Pro-tier ($49/mo) — but the
+trader card with a structural read. The 5-seat ARCC committee
+cross-examination + PQC-sealed receipt are Pro-tier ($49/mo) — the
 free card itself is permanently free, no time-bomb.
 
 pip install gammaqc-terminal

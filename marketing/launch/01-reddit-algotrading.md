@@ -84,19 +84,34 @@ gamma scrape NVDA
 
 Free tier above is permanently free. No 30-day-trial-then-paywall.
 
-Pro tier ($49/mo, when you want it) adds:
+Pro tier ($49/mo, when you want it) adds the **Automated Thesis
+Governance** layer — the actual differentiator vs. yfinance+Excel:
 
-- 10-Seat Sacred Council split on every trader card
-- Cryptographically-sealed compliance receipts on every Ghost-Watcher
-  daemon fire (HMAC-SHA256 today, ML-DSA-65 PQC stub ready for the
-  keypair rollout). Useful if you're an RIA or anyone who needs a
-  reproducible audit trail.
+- **5-seat ARCC committee** (Adversarial Risk & Capital Committee)
+  cross-examines every position you mint via `gamma thesis mint`.
+  Volatility & Liquidity, Macro Regime, Forensic, Behavioral &
+  Order-Flow, CRO Aggregator. Named institutional charters with
+  verbatim mandates — not "AI signals."
+- **Sealed Ledger.** Every thesis is sealed at entry with an Ed25519
+  signature (FIPS-204 ML-DSA-65 wire-ready). You cannot rewrite the
+  thesis after the trade goes against you. The math forbids it.
+- **Pre-Market Collision Matrix at 08:32 ET** — every sealed thesis
+  re-audited daily against live market data, surfacing a Thesis
+  Drift Index per position. A red collision forces a written
+  override or an exit.
+- **Offline receipt verification** via the free `gamma verify` command
+  — anyone (your auditor, your client, a regulator) can verify a
+  receipt against the public attestor key at attest.gammaqc.com
+  without trusting us.
 - `gamma shock --hedge` — backend Algorithmic Hedge Strategy. The
   hedge logic is a **deterministic rule table, NOT LLM-generated**.
   Hedge advice has legal exposure; it has to be reproducible from
-  inputs for compliance audit. The trade-off vs an LLM is intentional.
-- Backend Warren-Voice analysis (this one IS LLM-graded, with per-call
+  inputs for compliance audit.
+- Backend Warren-Voice analysis (LLM-graded, with per-call
   attestation hash on the response).
+
+For RIAs / fiduciaries who need a single-tenant cell + compliance
+archive export: **Institutional tier $249/mo**.
 
 ---
 
@@ -144,12 +159,14 @@ empirically-derived betas from a real factor model are welcome.
 
 ### "Why should I trust the Pro tier signing?"
 
-The signed payload is HMAC-SHA256 today with a published
-canonicalization (sort_keys + `:` separators, strip `_attestation`
-field before re-encoding). Any third party with the verifier key can
-validate the signature. The ML-DSA-65 PQC path is wired but stub-
-inactive until the keypair lands — explicitly marked as
-"honest unsigned" until then, never silently downgraded.
+Receipts are signed with Ed25519 today (FIPS-204 ML-DSA-65 wire-ready
+for the PQC migration). The public verifier key is published at
+attest.gammaqc.com/.well-known/attestor.json. Canonicalization is
+RFC8785-style (sort_keys + `:` separators, signature/sealed_at fields
+stripped before signing). The free `gamma verify` CLI command does
+the offline verification — install it, hand it any sealed receipt +
+the published key, and verify without trusting us. The vendor cannot
+retroactively change a verdict; the math forbids it.
 
 ### "Where's the code?"
 

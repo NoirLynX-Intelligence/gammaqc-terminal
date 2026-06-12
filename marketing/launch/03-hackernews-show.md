@@ -39,16 +39,28 @@ Free tier:
   - Headless daemon that fires desktop notifications + webhooks
   - Apache-2.0, on PyPI, supports Python 3.10+
 
-Pro tier ($49/mo):
-  - HMAC-SHA256-signed compliance receipts on every daemon fire
-    (ML-DSA-65 PQC wire-ready, currently honest-unsigned with explicit
-    marker — see services/oracle/attestation.py for the full chain)
-  - The 10-Seat sovereign council split renders on the Trader Card
+Pro tier ($49/mo) — adds the Automated Thesis Governance layer:
+  - 5-seat ARCC (Adversarial Risk & Capital Committee) cross-examines
+    every position you mint via `gamma thesis mint`. Named
+    institutional charters: Volatility & Liquidity, Macro Regime,
+    Forensic, Behavioral & Order-Flow, CRO Aggregator.
+  - Sealed Ledger — every thesis sealed at entry with Ed25519
+    (FIPS-204 ML-DSA-65 wire-ready). You cannot rewrite the thesis
+    after the trade goes against you; the math forbids it.
+  - Pre-Market Collision Matrix at 08:32 ET — every sealed thesis
+    re-audited against live market data, surfacing a per-position
+    Thesis Drift Index. Red collision → forced override or exit.
+  - Public attestor + offline `gamma verify` command — your auditor
+    can verify any receipt against attest.gammaqc.com without
+    trusting us. Cross-runtime canonical JSON kernel.
   - Algorithmic Hedge Strategy generation (deterministic rule table,
     NOT LLM-generated — hedge advice has legal exposure, must be
     reproducible from inputs for compliance audit)
   - Backend Warren-Voice (one LLM call per analysis, capped by
     per-hour quota so a script loop can't burn unbounded tokens)
+
+For RIAs / fiduciaries needing single-tenant cell + compliance
+archive export: Institutional tier $249/mo.
 
 What I'd most appreciate from HN:
 1. Honest critique of the privacy contract — read the source, find
